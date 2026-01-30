@@ -1,0 +1,54 @@
+{
+  "common": {
+    "appName": "PortfolioTracker",
+    "signIn": "Sign In",
+    "getStarted": "Get Started",
+    "learnMore": "Learn More"
+  },
+  "landing": {
+    "hero": {
+      "title": "Track Your Investments",
+      "titleHighlight": "With Confidence",
+      "subtitle": "A modern portfolio tracker that helps you monitor your stocks, analyze performance, and make smarter investment decisions."
+    },
+    "features": {
+      "analytics": {
+        "title": "Real-time Analytics",
+        "description": "Track your portfolio performance with live market data and detailed analytics."
+      },
+      "security": {
+        "title": "Secure & Private",
+        "description": "Your financial data is encrypted and never shared with third parties."
+      },
+      "speed": {
+        "title": "Fast & Intuitive",
+        "description": "A clean, modern interface designed for speed and ease of use."
+      }
+    },
+    "footer": {
+      "copyright": "© 2026 PortfolioTracker. All rights reserved."
+    }
+  },
+  "auth": {
+    "login": {
+      "title": "Sign In",
+      "placeholder": "Login page coming soon..."
+    },
+    "register": {
+      "title": "Create Account",
+      "placeholder": "Registration page coming soon..."
+    }
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "placeholder": "Your portfolio overview will appear here..."
+  },
+  "portfolio": {
+    "title": "Portfolio Details",
+    "viewing": "Viewing portfolio: {{id}}"
+  },
+  "profile": {
+    "title": "Profile",
+    "placeholder": "Your profile settings will appear here..."
+  }
+}
