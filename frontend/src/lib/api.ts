@@ -1,17 +1,19 @@
 import axios from 'axios';
+import { supabase } from './supabase';
 
 // Create axios instance with base configuration
 export const apiClient = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8000',
+  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8000/api',
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-// Request interceptor for adding auth token
+// Request interceptor for adding auth token from Supabase
 apiClient.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('token');
+  async (config) => {
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -23,10 +25,10 @@ apiClient.interceptors.request.use(
 // Response interceptor for handling errors
 apiClient.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem('token');
-      window.location.href = '/login';
+      await supabase.auth.signOut();
+      window.location.href = '/auth';
     }
     return Promise.reject(error);
   }
@@ -36,14 +38,9 @@ apiClient.interceptors.response.use(
 // API Functions
 // ============================================
 
-// Auth
-export const login = async (email: string, password: string) => {
-  const response = await apiClient.post('/auth/login', { email, password });
-  return response.data;
-};
-
-export const register = async (email: string, password: string, name: string) => {
-  const response = await apiClient.post('/auth/register', { email, password, name });
+// Auth (email check only - actual auth handled by Supabase client)
+export const checkEmailExists = async (email: string): Promise<{ exists: boolean }> => {
+  const response = await apiClient.post('/auth/check-email', { email });
   return response.data;
 };
 

@@ -1,7 +1,7 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, ProtectedLayout, ThemeProvider } from '@/hooks';
-import { LandingPage, LoginPage, RegisterPage } from '@/pages/public';
+import { LandingPage, AuthPage } from '@/pages/public';
 import { Dashboard, PortfolioDetail, Profile } from '@/pages/private';
 import '@/i18n';
 import './index.css';
@@ -25,8 +25,10 @@ function App() {
             <Routes>
               {/* Public Routes */}
               <Route path="/" element={<LandingPage />} />
-              <Route path="/login" element={<LoginPage />} />
-              <Route path="/register" element={<RegisterPage />} />
+              <Route path="/auth" element={<AuthPage />} />
+              {/* Redirect old routes to unified auth */}
+              <Route path="/login" element={<Navigate to="/auth" replace />} />
+              <Route path="/register" element={<Navigate to="/auth" replace />} />
 
               {/* Private Routes */}
               <Route

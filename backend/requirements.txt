@@ -3,3 +3,11 @@ yfinance
 sqlalchemy
 psycopg2-binary
 python-dotenv
+fastapi
+uvicorn[standard]
+pydantic[email]
+pydantic-settings
+passlib[bcrypt]
+python-jose[cryptography]
+python-multipart
+httpx

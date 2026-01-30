@@ -1,12 +1,20 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { TrendingUp, Moon, Sun } from 'lucide-react';
+import { TrendingUp, Moon, Sun, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useTheme } from '@/hooks/useTheme';
+import { useAuth } from '@/hooks/useAuth';
 
 export function Header() {
   const { t } = useTranslation();
   const { theme, toggleTheme } = useTheme();
+  const { isAuthenticated, signOut, user } = useAuth();
+  const navigate = useNavigate();
+
+  const handleSignOut = async () => {
+    await signOut();
+    navigate('/');
+  };
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -17,9 +25,28 @@ export function Header() {
         </Link>
         
         <nav className="flex items-center gap-2">
-          <Link to="/login">
-            <Button variant="default">{t('common.signIn')}</Button>
-          </Link>
+          {isAuthenticated ? (
+            <>
+              <Link to="/dashboard">
+                <Button variant="ghost">{t('common.dashboard')}</Button>
+              </Link>
+              <span className="text-sm text-muted-foreground hidden sm:inline">
+                {user?.email}
+              </span>
+              <Button 
+                variant="ghost" 
+                size="icon"
+                onClick={handleSignOut}
+                aria-label="Sign out"
+              >
+                <LogOut className="h-5 w-5" />
+              </Button>
+            </>
+          ) : (
+            <Link to="/auth">
+              <Button variant="default">{t('common.signIn')}</Button>
+            </Link>
+          )}
           <Button 
             variant="ghost" 
             size="icon" 

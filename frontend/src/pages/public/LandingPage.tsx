@@ -23,7 +23,7 @@ export function LandingPage() {
             {t('landing.hero.subtitle')}
           </p>
           <div className="flex justify-center gap-4">
-            <Link to="/register">
+            <Link to="/auth">
               <Button size="lg" className="gap-2">
                 {t('common.getStarted')} <ArrowRight className="h-4 w-4" />
               </Button>

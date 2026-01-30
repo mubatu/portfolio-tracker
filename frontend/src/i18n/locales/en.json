@@ -2,6 +2,8 @@
   "common": {
     "appName": "PortfolioTracker",
     "signIn": "Sign In",
+    "signOut": "Sign Out",
+    "dashboard": "Dashboard",
     "getStarted": "Get Started",
     "learnMore": "Learn More"
   },
@@ -30,13 +32,26 @@
     }
   },
   "auth": {
-    "login": {
-      "title": "Sign In",
-      "placeholder": "Login page coming soon..."
-    },
-    "register": {
-      "title": "Create Account",
-      "placeholder": "Registration page coming soon..."
+    "welcome": "Welcome",
+    "welcomeBack": "Welcome back",
+    "enterEmail": "Enter your email to continue",
+    "loginSubtitle": "It looks like there's an account registered with this email. Please enter your password.",
+    "registerSubtitle": "It looks like there's no account registered with this email in our system. Please fill out the form below to create your account.",
+    "email": "Email",
+    "emailPlaceholder": "you@example.com",
+    "password": "Password",
+    "passwordPlaceholder": "Enter your password",
+    "createPasswordPlaceholder": "Create a password",
+    "name": "Name",
+    "namePlaceholder": "Your full name",
+    "continue": "Continue",
+    "back": "Back",
+    "signIn": "Sign In",
+    "createAccount": "Create Account",
+    "errors": {
+      "emailCheck": "Unable to verify email. Please try again.",
+      "invalidCredentials": "Invalid email or password.",
+      "registrationFailed": "Registration failed. Please try again."
     }
   },
   "dashboard": {
@@ -50,5 +65,20 @@
   "profile": {
     "title": "Profile",
     "placeholder": "Your profile settings will appear here..."
+  },
+  "password": {
+    "requirements": {
+      "minLength": "At least 8 characters",
+      "uppercase": "At least one uppercase letter",
+      "lowercase": "At least one lowercase letter",
+      "number": "At least one number",
+      "special": "At least one special character (!@#$%^&*)"
+    },
+    "strength": {
+      "label": "Password strength",
+      "weak": "Weak",
+      "medium": "Medium",
+      "strong": "Strong"
+    }
   }
 }
