@@ -7,6 +7,7 @@ import {
 } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
+import { Header } from '@/components/layout';
 import type { User, Session } from '@supabase/supabase-js';
 
 interface AuthContextType {
@@ -120,5 +121,12 @@ export function ProtectedLayout({ children }: ProtectedLayoutProps) {
     return <Navigate to="/auth" state={{ from: location }} replace />;
   }
 
-  return <>{children}</>;
+  return (
+    <div className="min-h-screen flex flex-col bg-background">
+      <Header />
+      <main className="flex-1">
+        {children}
+      </main>
+    </div>
+  );
 }

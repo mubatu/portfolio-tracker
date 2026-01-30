@@ -3,9 +3,11 @@ import { useTranslation } from 'react-i18next';
 import { ArrowRight, BarChart3, Shield, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Header } from '@/components/layout';
+import { useAuth } from '@/hooks/useAuth';
 
 export function LandingPage() {
   const { t } = useTranslation();
+  const { isAuthenticated } = useAuth();
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -23,7 +25,7 @@ export function LandingPage() {
             {t('landing.hero.subtitle')}
           </p>
           <div className="flex justify-center gap-4">
-            <Link to="/auth">
+            <Link to={isAuthenticated ? '/dashboard' : '/auth'}>
               <Button size="lg" className="gap-2">
                 {t('common.getStarted')} <ArrowRight className="h-4 w-4" />
               </Button>

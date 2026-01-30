@@ -4,6 +4,7 @@
     "signIn": "Sign In",
     "signOut": "Sign Out",
     "dashboard": "Dashboard",
+    "myPortfolios": "My Portfolios",
     "getStarted": "Get Started",
     "learnMore": "Learn More"
   },
@@ -57,6 +58,10 @@
   "dashboard": {
     "title": "Dashboard",
     "placeholder": "Your portfolio overview will appear here..."
+  },
+  "myPortfolios": {
+    "title": "My Portfolios",
+    "placeholder": "Your portfolios will appear here..."
   },
   "portfolio": {
     "title": "Portfolio Details",
