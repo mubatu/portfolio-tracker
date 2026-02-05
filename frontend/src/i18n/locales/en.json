@@ -6,7 +6,15 @@
     "dashboard": "Dashboard",
     "myPortfolios": "My Portfolios",
     "getStarted": "Get Started",
-    "learnMore": "Learn More"
+    "learnMore": "Learn More",
+    "cancel": "Cancel",
+    "create": "Create",
+    "save": "Save",
+    "delete": "Delete",
+    "edit": "Edit",
+    "loading": "Loading...",
+    "error": "An error occurred",
+    "noData": "No data available"
   },
   "landing": {
     "hero": {
@@ -61,11 +69,61 @@
   },
   "myPortfolios": {
     "title": "My Portfolios",
-    "placeholder": "Your portfolios will appear here..."
+    "subtitle": "Manage your investment portfolios",
+    "createNew": "New Portfolio",
+    "empty": {
+      "title": "No portfolios yet",
+      "description": "Create your first portfolio to start tracking your investments."
+    },
+    "card": {
+      "transactions": "{{count}} transactions",
+      "noTransactions": "No transactions",
+      "created": "Created {{date}}"
+    },
+    "create": {
+      "title": "Create New Portfolio",
+      "namePlaceholder": "e.g., Tech Stocks, Retirement Fund",
+      "nameLabel": "Portfolio Name"
+    }
   },
   "portfolio": {
     "title": "Portfolio Details",
-    "viewing": "Viewing portfolio: {{id}}"
+    "viewing": "Viewing portfolio: {{id}}",
+    "back": "Back to Portfolios",
+    "addTransaction": "Add Transaction",
+    "transactions": {
+      "title": "Transactions",
+      "empty": {
+        "title": "No transactions yet",
+        "description": "Add your first transaction to start tracking this portfolio."
+      },
+      "ticker": "Ticker",
+      "operation": "Operation",
+      "market": "Market",
+      "quantity": "Quantity",
+      "price": "Price",
+      "total": "Total",
+      "date": "Date",
+      "buy": "Buy",
+      "sell": "Sell"
+    },
+    "addTransactionModal": {
+      "title": "Add Transaction",
+      "marketLabel": "Market",
+      "tickerLabel": "Ticker Symbol",
+      "tickerPlaceholder": "e.g., THYAO, SISE, AKBNK",
+      "operationLabel": "Operation",
+      "quantityLabel": "Quantity",
+      "quantityPlaceholder": "Number of shares",
+      "priceLabel": "Price per Share",
+      "pricePlaceholder": "Price",
+      "dateLabel": "Transaction Date"
+    },
+    "deleteConfirm": {
+      "title": "Delete Portfolio",
+      "message": "Are you sure you want to delete \"{{name}}\"? This action cannot be undone and all transactions will be permanently deleted.",
+      "confirm": "Delete Portfolio"
+    }
   },
   "profile": {
     "title": "Profile",
