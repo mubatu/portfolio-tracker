@@ -119,6 +119,9 @@
       "pricePlaceholder": "Price",
       "dateLabel": "Transaction Date"
     },
+    "editTransactionModal": {
+      "title": "Edit Transaction"
+    },
     "deleteConfirm": {
       "title": "Delete Portfolio",
       "message": "Are you sure you want to delete \"{{name}}\"? This action cannot be undone and all transactions will be permanently deleted.",

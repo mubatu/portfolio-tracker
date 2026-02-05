@@ -35,6 +35,16 @@ export interface CreateTransactionInput {
   date: string;
 }
 
+export interface UpdateTransactionInput {
+  id: number;
+  ticker: string;
+  operation: 'buy' | 'sell';
+  market: Market;
+  quantity: number;
+  price: number;
+  date: string;
+}
+
 // Portfolio CRUD operations
 export async function getPortfolios(): Promise<Portfolio[]> {
   const { data: { user } } = await supabase.auth.getUser();
@@ -222,4 +232,49 @@ export async function deleteTransaction(id: number): Promise<void> {
   if (error) {
     throw new Error(error.message);
   }
+}
+
+export async function updateTransaction(input: UpdateTransactionInput): Promise<Transaction> {
+  const { data: { user } } = await supabase.auth.getUser();
+  
+  if (!user) {
+    throw new Error('User not authenticated');
+  }
+
+  // Get the transaction to verify ownership through portfolio
+  const { data: existingTransaction, error: fetchError } = await supabase
+    .from('transactions')
+    .select('portfolio_id')
+    .eq('id', input.id)
+    .single();
+
+  if (fetchError) {
+    throw new Error(fetchError.message);
+  }
+
+  // Verify the portfolio belongs to the user
+  const portfolio = await getPortfolio(existingTransaction.portfolio_id);
+  if (!portfolio) {
+    throw new Error('Transaction not found');
+  }
+
+  const { data, error } = await supabase
+    .from('transactions')
+    .update({
+      ticker: input.ticker.toUpperCase(),
+      operation: input.operation,
+      market: input.market,
+      quantity: input.quantity,
+      price: input.price,
+      date: input.date,
+    })
+    .eq('id', input.id)
+    .select()
+    .single();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data;
 }

@@ -7,6 +7,7 @@ import {
   Plus,
   Loader2,
   Trash2,
+  Pencil,
   TrendingUp,
   TrendingDown,
   Calendar,
@@ -17,7 +18,9 @@ import {
   getPortfolio,
   getTransactions,
   createTransaction,
+  updateTransaction,
   deleteTransaction,
+  type Transaction,
 } from '@/services/portfolioService';
 import {
   MARKETS,
@@ -34,7 +37,10 @@ export function PortfolioDetail() {
   const portfolioId = Number(id);
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [addError, setAddError] = useState('');
+  const [editError, setEditError] = useState('');
 
   // Form state for new transaction
   const [ticker, setTicker] = useState('');
@@ -88,6 +94,19 @@ export function PortfolioDetail() {
     },
   });
 
+  // Update transaction mutation
+  const updateMutation = useMutation({
+    mutationFn: updateTransaction,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['transactions', portfolioId] });
+      queryClient.invalidateQueries({ queryKey: ['portfolios'] });
+      closeEditModal();
+    },
+    onError: (error: Error) => {
+      setEditError(error.message);
+    },
+  });
+
   const closeAddModal = () => {
     setIsAddModalOpen(false);
     setTicker('');
@@ -97,6 +116,29 @@ export function PortfolioDetail() {
     setPrice('');
     setDate(new Date().toISOString().split('T')[0]);
     setAddError('');
+  };
+
+  const openEditModal = (transaction: Transaction) => {
+    setEditingTransaction(transaction);
+    setTicker(transaction.ticker);
+    setOperation(transaction.operation);
+    setMarket(transaction.market);
+    setQuantity(String(transaction.quantity));
+    setPrice(String(transaction.price));
+    setDate(transaction.date);
+    setIsEditModalOpen(true);
+  };
+
+  const closeEditModal = () => {
+    setIsEditModalOpen(false);
+    setEditingTransaction(null);
+    setTicker('');
+    setOperation('buy');
+    setMarket('BIST');
+    setQuantity('');
+    setPrice('');
+    setDate(new Date().toISOString().split('T')[0]);
+    setEditError('');
   };
 
   const handleAddSubmit = (e: React.FormEvent) => {
@@ -116,6 +158,21 @@ export function PortfolioDetail() {
 
   const handleDeleteTransaction = (transactionId: number) => {
     deleteMutation.mutate(transactionId);
+  };
+
+  const handleEditSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (editingTransaction && ticker && quantity && price && date) {
+      updateMutation.mutate({
+        id: editingTransaction.id,
+        ticker: ticker.toUpperCase(),
+        operation,
+        market,
+        quantity: parseFloat(quantity),
+        price: parseFloat(price),
+        date,
+      });
+    }
   };
 
   const formatCurrency = (value: number, currency: string = 'TRY') => {
@@ -354,20 +411,33 @@ export function PortfolioDetail() {
                             {formatDate(transaction.date)}
                           </td>
                           <td className="px-4 py-3">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8"
-                              onClick={() =>
-                                handleDeleteTransaction(transaction.id)
-                              }
-                              disabled={deleteMutation.isPending}
-                            >
-                              <Trash2
-                                className="h-4 w-4"
-                                style={{ color: 'hsl(var(--destructive))' }}
-                              />
-                            </Button>
+                            <div className="flex items-center gap-1">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                                onClick={() => openEditModal(transaction)}
+                              >
+                                <Pencil
+                                  className="h-4 w-4"
+                                  style={{ color: 'hsl(var(--muted-foreground))' }}
+                                />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                                onClick={() =>
+                                  handleDeleteTransaction(transaction.id)
+                                }
+                                disabled={deleteMutation.isPending}
+                              >
+                                <Trash2
+                                  className="h-4 w-4"
+                                  style={{ color: 'hsl(var(--destructive))' }}
+                                />
+                              </Button>
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -557,6 +627,187 @@ export function PortfolioDetail() {
           {addError && (
             <p className="text-sm" style={{ color: 'hsl(var(--destructive))' }}>
               {addError}
+            </p>
+          )}
+        </form>
+      </Modal>
+
+      {/* Edit Transaction Modal */}
+      <Modal
+        isOpen={isEditModalOpen}
+        onClose={closeEditModal}
+        title={t('portfolio.editTransactionModal.title')}
+        footer={
+          <>
+            <Button variant="outline" onClick={closeEditModal}>
+              {t('common.cancel')}
+            </Button>
+            <Button
+              onClick={handleEditSubmit}
+              disabled={
+                !ticker ||
+                !quantity ||
+                !price ||
+                !date ||
+                updateMutation.isPending
+              }
+            >
+              {updateMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                t('common.save')
+              )}
+            </Button>
+          </>
+        }
+      >
+        <form onSubmit={handleEditSubmit} className="space-y-4">
+          {/* Market */}
+          <div>
+            <label htmlFor="edit-market" className="block text-sm font-medium mb-2">
+              {t('portfolio.addTransactionModal.marketLabel')}
+            </label>
+            <select
+              id="edit-market"
+              value={market}
+              onChange={(e) => setMarket(e.target.value as Market)}
+              className="w-full px-3 py-2 rounded-md border bg-transparent"
+              style={{ borderColor: 'hsl(var(--input))' }}
+            >
+              {MARKETS.map((m) => (
+                <option key={m.value} value={m.value}>
+                  {m.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Ticker */}
+          <div>
+            <label htmlFor="edit-ticker" className="block text-sm font-medium mb-2">
+              {t('portfolio.addTransactionModal.tickerLabel')}
+            </label>
+            <input
+              id="edit-ticker"
+              type="text"
+              value={ticker}
+              onChange={(e) => setTicker(e.target.value.toUpperCase())}
+              placeholder={t('portfolio.addTransactionModal.tickerPlaceholder')}
+              className="w-full px-3 py-2 rounded-md border bg-transparent uppercase"
+              style={{ borderColor: 'hsl(var(--input))' }}
+            />
+          </div>
+
+          {/* Operation */}
+          <div>
+            <label className="block text-sm font-medium mb-2">
+              {t('portfolio.addTransactionModal.operationLabel')}
+            </label>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setOperation('buy')}
+                className="flex-1 py-2 px-4 rounded-md border text-sm font-medium transition-colors"
+                style={{
+                  borderColor:
+                    operation === 'buy'
+                      ? 'hsl(142 76% 36%)'
+                      : 'hsl(var(--input))',
+                  backgroundColor:
+                    operation === 'buy'
+                      ? 'hsl(142 76% 36% / 0.1)'
+                      : 'transparent',
+                  color:
+                    operation === 'buy'
+                      ? 'hsl(142 76% 36%)'
+                      : 'hsl(var(--foreground))',
+                }}
+              >
+                {t('portfolio.transactions.buy')}
+              </button>
+              <button
+                type="button"
+                onClick={() => setOperation('sell')}
+                className="flex-1 py-2 px-4 rounded-md border text-sm font-medium transition-colors"
+                style={{
+                  borderColor:
+                    operation === 'sell'
+                      ? 'hsl(0 84% 60%)'
+                      : 'hsl(var(--input))',
+                  backgroundColor:
+                    operation === 'sell'
+                      ? 'hsl(0 84% 60% / 0.1)'
+                      : 'transparent',
+                  color:
+                    operation === 'sell'
+                      ? 'hsl(0 84% 60%)'
+                      : 'hsl(var(--foreground))',
+                }}
+              >
+                {t('portfolio.transactions.sell')}
+              </button>
+            </div>
+          </div>
+
+          {/* Quantity & Price */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label
+                htmlFor="edit-quantity"
+                className="block text-sm font-medium mb-2"
+              >
+                {t('portfolio.addTransactionModal.quantityLabel')}
+              </label>
+              <input
+                id="edit-quantity"
+                type="number"
+                step="any"
+                min="0"
+                value={quantity}
+                onChange={(e) => setQuantity(e.target.value)}
+                placeholder={t(
+                  'portfolio.addTransactionModal.quantityPlaceholder'
+                )}
+                className="w-full px-3 py-2 rounded-md border bg-transparent"
+                style={{ borderColor: 'hsl(var(--input))' }}
+              />
+            </div>
+            <div>
+              <label htmlFor="edit-price" className="block text-sm font-medium mb-2">
+                {t('portfolio.addTransactionModal.priceLabel')}
+              </label>
+              <input
+                id="edit-price"
+                type="number"
+                step="any"
+                min="0"
+                value={price}
+                onChange={(e) => setPrice(e.target.value)}
+                placeholder={t('portfolio.addTransactionModal.pricePlaceholder')}
+                className="w-full px-3 py-2 rounded-md border bg-transparent"
+                style={{ borderColor: 'hsl(var(--input))' }}
+              />
+            </div>
+          </div>
+
+          {/* Date */}
+          <div>
+            <label htmlFor="edit-date" className="block text-sm font-medium mb-2">
+              {t('portfolio.addTransactionModal.dateLabel')}
+            </label>
+            <input
+              id="edit-date"
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              className="w-full px-3 py-2 rounded-md border bg-transparent"
+              style={{ borderColor: 'hsl(var(--input))' }}
+            />
+          </div>
+
+          {editError && (
+            <p className="text-sm" style={{ color: 'hsl(var(--destructive))' }}>
+              {editError}
             </p>
           )}
         </form>
