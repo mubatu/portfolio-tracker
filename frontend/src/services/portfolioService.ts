@@ -5,6 +5,7 @@ export interface Portfolio {
   id: number;
   user_id: string;
   name: string;
+  slug: string;
   created_at: string;
   transaction_count?: number;
 }
@@ -98,6 +99,30 @@ export async function getPortfolio(id: number): Promise<Portfolio | null> {
   return data;
 }
 
+export async function getPortfolioBySlug(slug: string): Promise<Portfolio | null> {
+  const { data: { user } } = await supabase.auth.getUser();
+  
+  if (!user) {
+    throw new Error('User not authenticated');
+  }
+
+  const { data, error } = await supabase
+    .from('portfolios')
+    .select('*')
+    .eq('slug', slug)
+    .eq('user_id', user.id)
+    .single();
+
+  if (error) {
+    if (error.code === 'PGRST116') {
+      return null; // Not found
+    }
+    throw new Error(error.message);
+  }
+
+  return data;
+}
+
 export async function createPortfolio(input: CreatePortfolioInput): Promise<Portfolio> {
   const { data: { user } } = await supabase.auth.getUser();
   
@@ -139,6 +164,24 @@ export async function deletePortfolio(id: number): Promise<void> {
   }
 }
 
+export async function deletePortfolioBySlug(slug: string): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  
+  if (!user) {
+    throw new Error('User not authenticated');
+  }
+
+  const { error } = await supabase
+    .from('portfolios')
+    .delete()
+    .eq('slug', slug)
+    .eq('user_id', user.id);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
 // Transaction CRUD operations
 export async function getTransactions(portfolioId: number): Promise<Transaction[]> {
   const { data: { user } } = await supabase.auth.getUser();
@@ -157,6 +200,32 @@ export async function getTransactions(portfolioId: number): Promise<Transaction[
     .from('transactions')
     .select('*')
     .eq('portfolio_id', portfolioId)
+    .order('date', { ascending: false });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data || [];
+}
+
+export async function getTransactionsBySlug(slug: string): Promise<Transaction[]> {
+  const { data: { user } } = await supabase.auth.getUser();
+  
+  if (!user) {
+    throw new Error('User not authenticated');
+  }
+
+  // First verify the portfolio belongs to the user and get its id
+  const portfolio = await getPortfolioBySlug(slug);
+  if (!portfolio) {
+    throw new Error('Portfolio not found');
+  }
+
+  const { data, error } = await supabase
+    .from('transactions')
+    .select('*')
+    .eq('portfolio_id', portfolio.id)
     .order('date', { ascending: false });
 
   if (error) {

@@ -48,7 +48,7 @@ function App() {
                 }
               />
               <Route
-                path="/portfolio/:id"
+                path="/portfolio/:slug"
                 element={
                   <ProtectedLayout>
                     <PortfolioDetail />

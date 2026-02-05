@@ -15,8 +15,8 @@ import {
 import { Button } from '@/components/ui/button';
 import { Modal } from '@/components/ui/Modal';
 import {
-  getPortfolio,
-  getTransactions,
+  getPortfolioBySlug,
+  getTransactionsBySlug,
   createTransaction,
   updateTransaction,
   deleteTransaction,
@@ -31,10 +31,9 @@ import {
 
 export function PortfolioDetail() {
   const { t, i18n } = useTranslation();
-  const { id } = useParams<{ id: string }>();
+  const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const portfolioId = Number(id);
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -56,9 +55,9 @@ export function PortfolioDetail() {
     isLoading: portfolioLoading,
     error: portfolioError,
   } = useQuery({
-    queryKey: ['portfolio', portfolioId],
-    queryFn: () => getPortfolio(portfolioId),
-    enabled: !isNaN(portfolioId),
+    queryKey: ['portfolio', slug],
+    queryFn: () => getPortfolioBySlug(slug!),
+    enabled: !!slug,
   });
 
   // Fetch transactions
@@ -67,16 +66,16 @@ export function PortfolioDetail() {
     isLoading: transactionsLoading,
     error: transactionsError,
   } = useQuery({
-    queryKey: ['transactions', portfolioId],
-    queryFn: () => getTransactions(portfolioId),
-    enabled: !isNaN(portfolioId) && !!portfolio,
+    queryKey: ['transactions', slug],
+    queryFn: () => getTransactionsBySlug(slug!),
+    enabled: !!slug && !!portfolio,
   });
 
   // Create transaction mutation
   const createMutation = useMutation({
     mutationFn: createTransaction,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['transactions', portfolioId] });
+      queryClient.invalidateQueries({ queryKey: ['transactions', slug] });
       queryClient.invalidateQueries({ queryKey: ['portfolios'] });
       closeAddModal();
     },
@@ -89,7 +88,7 @@ export function PortfolioDetail() {
   const deleteMutation = useMutation({
     mutationFn: deleteTransaction,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['transactions', portfolioId] });
+      queryClient.invalidateQueries({ queryKey: ['transactions', slug] });
       queryClient.invalidateQueries({ queryKey: ['portfolios'] });
     },
   });
@@ -98,7 +97,7 @@ export function PortfolioDetail() {
   const updateMutation = useMutation({
     mutationFn: updateTransaction,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['transactions', portfolioId] });
+      queryClient.invalidateQueries({ queryKey: ['transactions', slug] });
       queryClient.invalidateQueries({ queryKey: ['portfolios'] });
       closeEditModal();
     },
@@ -143,9 +142,9 @@ export function PortfolioDetail() {
 
   const handleAddSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (ticker && quantity && price && date) {
+    if (ticker && quantity && price && date && portfolio) {
       createMutation.mutate({
-        portfolio_id: portfolioId,
+        portfolio_id: portfolio.id,
         ticker: ticker.toUpperCase(),
         operation,
         market,
@@ -361,7 +360,7 @@ export function PortfolioDetail() {
                           </td>
                           <td className="px-4 py-3">
                             <span
-                              className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
+                              className="inline-flex items-center px-2.5 py-1 rounded text-sm font-medium"
                               style={{
                                 backgroundColor: 'hsl(var(--muted))',
                               }}
@@ -371,7 +370,7 @@ export function PortfolioDetail() {
                           </td>
                           <td className="px-4 py-3">
                             <span
-                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium"
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-sm font-medium"
                               style={{
                                 backgroundColor:
                                   transaction.operation === 'buy'
@@ -384,9 +383,9 @@ export function PortfolioDetail() {
                               }}
                             >
                               {transaction.operation === 'buy' ? (
-                                <TrendingUp className="h-3 w-3" />
+                                <TrendingUp className="h-4 w-4" />
                               ) : (
-                                <TrendingDown className="h-3 w-3" />
+                                <TrendingDown className="h-4 w-4" />
                               )}
                               {t(`portfolio.transactions.${transaction.operation}`)}
                             </span>

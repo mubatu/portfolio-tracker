@@ -159,7 +159,7 @@ export function MyPortfolios() {
           {portfolios.map((portfolio) => (
             <div
               key={portfolio.id}
-              onClick={() => navigate(`/portfolio/${portfolio.id}`)}
+              onClick={() => navigate(`/portfolio/${portfolio.slug}`)}
               className="group rounded-lg border p-5 cursor-pointer transition-all hover:shadow-md"
               style={{
                 borderColor: 'hsl(var(--border))',
