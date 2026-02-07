@@ -26,6 +26,7 @@ import {
   MARKETS,
   getMarketCurrency,
   getLocale,
+  toDisplayTicker,
   type Market,
 } from '@/config';
 
@@ -119,7 +120,7 @@ export function PortfolioDetail() {
 
   const openEditModal = (transaction: Transaction) => {
     setEditingTransaction(transaction);
-    setTicker(transaction.ticker);
+    setTicker(toDisplayTicker(transaction.ticker, transaction.market));
     setOperation(transaction.operation);
     setMarket(transaction.market);
     setQuantity(String(transaction.quantity));
@@ -355,7 +356,7 @@ export function PortfolioDetail() {
                         >
                           <td className="px-4 py-3">
                             <span className="font-semibold">
-                              {transaction.ticker}
+                              {toDisplayTicker(transaction.ticker, transaction.market)}
                             </span>
                           </td>
                           <td className="px-4 py-3">

@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase';
-import { type Market } from '@/config';
+import { type Market, toFullTicker } from '@/config';
 
 export interface Portfolio {
   id: number;
@@ -252,7 +252,7 @@ export async function createTransaction(input: CreateTransactionInput): Promise<
     .from('transactions')
     .insert({
       portfolio_id: input.portfolio_id,
-      ticker: input.ticker.toUpperCase(),
+      ticker: toFullTicker(input.ticker.toUpperCase(), input.market),
       operation: input.operation,
       market: input.market,
       quantity: input.quantity,
@@ -330,7 +330,7 @@ export async function updateTransaction(input: UpdateTransactionInput): Promise<
   const { data, error } = await supabase
     .from('transactions')
     .update({
-      ticker: input.ticker.toUpperCase(),
+      ticker: toFullTicker(input.ticker.toUpperCase(), input.market),
       operation: input.operation,
       market: input.market,
       quantity: input.quantity,
