@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { type Market, toFullTicker } from '@/config';
+export { analyzePortfolio } from '@/lib/api';
 
 export interface Portfolio {
   id: number;

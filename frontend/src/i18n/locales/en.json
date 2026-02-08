@@ -65,7 +65,16 @@
   },
   "dashboard": {
     "title": "Dashboard",
-    "placeholder": "Your portfolio overview will appear here..."
+    "subtitle": "Select a portfolio to analyze its performance",
+    "selectPortfolio": "Choose a Portfolio",
+    "dropdownPlaceholder": "Select a portfolio…",
+    "analyze": "Analyze",
+    "txns": "txns",
+    "noPortfolios": "You don't have any portfolios yet. Create one to get started.",
+    "goToPortfolios": "Go to My Portfolios",
+    "backToDashboard": "Back to Dashboard",
+    "analysisTitle": "{{name}} — Analysis",
+    "analysisPlaceholder": "Portfolio analysis will appear here once implemented."
   },
   "myPortfolios": {
     "title": "My Portfolios",

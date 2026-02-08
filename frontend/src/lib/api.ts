@@ -90,6 +90,12 @@ export const createTransaction = async (
   return response.data;
 };
 
+// Analysis
+export const analyzePortfolio = async (portfolioId: number) => {
+  const response = await apiClient.get(`/portfolios/${portfolioId}/analyze`);
+  return response.data;
+};
+
 // Stocks
 export const searchStocks = async (query: string) => {
   const response = await apiClient.get(`/stocks/search?q=${query}`);

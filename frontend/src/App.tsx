@@ -2,7 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, ProtectedLayout, ThemeProvider } from '@/hooks';
 import { LandingPage, AuthPage } from '@/pages/public';
-import { Dashboard, MyPortfolios, PortfolioDetail, Profile } from '@/pages/private';
+import { Dashboard, MyPortfolios, PortfolioAnalyze, PortfolioDetail, Profile } from '@/pages/private';
 import '@/i18n';
 import './index.css';
 
@@ -52,6 +52,14 @@ function App() {
                 element={
                   <ProtectedLayout>
                     <PortfolioDetail />
+                  </ProtectedLayout>
+                }
+              />
+              <Route
+                path="/portfolio/:slug/analyze"
+                element={
+                  <ProtectedLayout>
+                    <PortfolioAnalyze />
                   </ProtectedLayout>
                 }
               />
