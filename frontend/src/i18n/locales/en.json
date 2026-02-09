@@ -71,10 +71,33 @@
     "analyze": "Analyze",
     "txns": "txns",
     "noPortfolios": "You don't have any portfolios yet. Create one to get started.",
-    "goToPortfolios": "Go to My Portfolios",
+    "goToPortfolios": "Go to My Portfolios"
+  },
+  "analyze": {
     "backToDashboard": "Back to Dashboard",
-    "analysisTitle": "{{name}} — Analysis",
-    "analysisPlaceholder": "Portfolio analysis will appear here once implemented."
+    "title": "{{name}} — Analysis",
+    "subtitle": "Average cost method · prices exclude today",
+    "totalInvested": "Total Invested",
+    "portfolioValue": "Portfolio Value",
+    "inTheSafe": "In the Safe",
+    "totalPl": "Total P/L",
+    "currentHoldings": "Current Holdings",
+    "closedPositions": "Closed Positions",
+    "noCurrentHoldings": "No stocks currently held.",
+    "noClosedPositions": "No closed positions yet.",
+    "table": {
+      "ticker": "Ticker",
+      "qty": "Qty",
+      "avgCost": "Avg Cost",
+      "price": "Price",
+      "value": "Value",
+      "invested": "Cost Basis",
+      "returned": "Proceeds",
+      "unrealized": "Unrealized P/L",
+      "realized": "Realized P/L",
+      "total": "Total P/L",
+      "pct": "%"
+    }
   },
   "myPortfolios": {
     "title": "My Portfolios",

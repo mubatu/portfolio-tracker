@@ -4,7 +4,10 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 from app.api.deps import CurrentUser
 from app.db import get_db
-from app.services.portfolio_service import backfill_portfolio_prices
+from app.services.portfolio_service import (
+    backfill_portfolio_prices,
+    calculate_portfolio_pl,
+)
 
 router = APIRouter(prefix="/portfolios", tags=["Portfolios"])
 
@@ -18,7 +21,7 @@ async def analyze_portfolio(
     """
     Analyze a portfolio:
       Step 1 — backfill market_prices for every holding.
-      Step 2 — (TODO) calculate profit/loss.
+      Step 2 — calculate profit/loss (average cost method).
     """
     # Verify the portfolio belongs to the current user
     row = db.execute(
@@ -35,7 +38,11 @@ async def analyze_portfolio(
     # Step 1: backfill prices
     backfill_result = backfill_portfolio_prices(db, portfolio_id)
 
+    # Step 2: calculate profit/loss
+    pl_result = calculate_portfolio_pl(db, portfolio_id)
+
     return {
         "portfolio_id": portfolio_id,
         "backfill": backfill_result,
+        **pl_result,
     }

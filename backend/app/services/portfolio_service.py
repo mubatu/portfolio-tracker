@@ -68,8 +68,245 @@ def backfill_portfolio_prices(db: Session, portfolio_id: int) -> dict:
     return {"tickers_processed": len(tickers), "details": summary}
 
 
+def calculate_portfolio_pl(db: Session, portfolio_id: int) -> dict:
+    """Calculate profit/loss for every ticker in the portfolio.
+
+    Uses the **average cost** method.
+    Tracks *pocket* (money from outside) vs *safe* (reinvested proceeds)
+    across the whole portfolio chronologically.
+
+    A single ticker can appear in *both* current_holdings (if shares are
+    still held) and closed_positions (if any shares were sold).
+    """
+    tickers = _distinct_tickers(db, portfolio_id)
+    if not tickers:
+        return {
+            "current_holdings": [],
+            "closed_positions": [],
+            "totals": _empty_totals(),
+        }
+
+    current_holdings: list[dict] = []
+    closed_positions: list[dict] = []
+
+    for ticker in tickers:
+        result = _ticker_pl(db, portfolio_id, ticker)
+
+        # If there was any realized P/L, show in closed positions
+        if result["total_sold_value"] > 0:
+            invested_in_sold = result["total_sold_cost"]
+            realized = result["realized_pl"]
+            realized_pct = (
+                float(realized / Decimal(str(invested_in_sold)) * 100)
+                if invested_in_sold > 0
+                else 0.0
+            )
+            closed_positions.append({
+                "ticker": ticker,
+                "total_invested": float(invested_in_sold),
+                "total_returned": float(result["total_sold_value"]),
+                "realized_pl": float(realized),
+                "realized_pl_pct": round(realized_pct, 2),
+            })
+
+        # If shares are still held, show in current holdings
+        if result["quantity"] > 0:
+            unrealized_pct = (
+                float(
+                    Decimal(str(result["unrealized_pl"]))
+                    / Decimal(str(result["current_cost_basis"]))
+                    * 100
+                )
+                if result["current_cost_basis"] > 0
+                else 0.0
+            )
+            current_holdings.append({
+                "ticker": ticker,
+                "quantity": float(result["quantity"]),
+                "avg_cost": float(result["avg_cost"]),
+                "current_price": float(result["current_price"]) if result["current_price"] else None,
+                "current_value": float(result["current_value"]),
+                "cost_basis": float(result["current_cost_basis"]),
+                "unrealized_pl": float(result["unrealized_pl"]),
+                "unrealized_pl_pct": round(unrealized_pct, 2),
+            })
+
+    pocket, safe = _portfolio_cash_flow(db, portfolio_id)
+    totals = _aggregate_totals(current_holdings, closed_positions, pocket, safe)
+    return {
+        "current_holdings": current_holdings,
+        "closed_positions": closed_positions,
+        "totals": totals,
+    }
+
+
 # ------------------------------------------------------------------
-# Internal helpers
+# P/L helpers
+# ------------------------------------------------------------------
+
+def _ticker_pl(db: Session, portfolio_id: int, ticker: str) -> dict:
+    """Compute P/L components for a single ticker using average cost.
+
+    Returns raw data that the caller splits into current-holding
+    and/or closed-position records.
+    """
+    rows = db.execute(
+        text(
+            """
+            SELECT operation, quantity, price, date
+            FROM transactions
+            WHERE portfolio_id = :pid AND ticker = :ticker
+            ORDER BY date, id
+            """
+        ),
+        {"pid": portfolio_id, "ticker": ticker},
+    ).fetchall()
+
+    qty = Decimal(0)        # shares currently held
+    cost_basis = Decimal(0) # total cost of held shares
+    realized = Decimal(0)   # cumulative realized P/L
+    total_sold_value = Decimal(0)  # total proceeds from sells
+    total_sold_cost = Decimal(0)   # cost basis of sold shares
+
+    for operation, quantity, price, txn_date in rows:
+        q = Decimal(str(quantity))
+        p = Decimal(str(price))
+
+        if operation.lower() == "buy":
+            cost_basis += q * p
+            qty += q
+        else:  # sell
+            if qty > 0:
+                avg_cost = cost_basis / qty
+                sell_cost = q * avg_cost
+                realized += q * (p - avg_cost)
+                total_sold_value += q * p
+                total_sold_cost += sell_cost
+                cost_basis -= sell_cost
+                qty -= q
+
+    # Current (unrealized) valuation — use yesterday's close
+    latest_price = _latest_price(db, ticker)
+    current_value = Decimal(0)
+    unrealized = Decimal(0)
+    avg_cost_now = Decimal(0)
+
+    if qty > 0:
+        avg_cost_now = cost_basis / qty
+        if latest_price is not None:
+            current_value = qty * latest_price
+            unrealized = qty * (latest_price - avg_cost_now)
+        else:
+            current_value = cost_basis
+
+    return {
+        "quantity": qty,
+        "avg_cost": avg_cost_now,
+        "current_price": latest_price,
+        "current_value": current_value,
+        "current_cost_basis": float(cost_basis),
+        "unrealized_pl": unrealized,
+        "realized_pl": realized,
+        "total_sold_value": float(total_sold_value),
+        "total_sold_cost": float(total_sold_cost),
+    }
+
+
+def _latest_price(db: Session, ticker: str) -> Decimal | None:
+    """Get the most recent close price from market_prices (before today)."""
+    row = db.execute(
+        text(
+            """
+            SELECT close FROM market_prices
+            WHERE ticker = :ticker AND date < CURRENT_DATE
+            ORDER BY date DESC
+            LIMIT 1
+            """
+        ),
+        {"ticker": ticker},
+    ).fetchone()
+    return Decimal(str(row[0])) if row else None
+
+
+def _aggregate_totals(
+    current_holdings: list[dict],
+    closed_positions: list[dict],
+    pocket: Decimal,
+    safe: Decimal,
+) -> dict:
+    """Build portfolio-wide totals using pocket/safe cash-flow model."""
+    portfolio_value = sum(h["current_value"] for h in current_holdings)
+    realized = sum(c["realized_pl"] for c in closed_positions)
+    unrealized = sum(h["unrealized_pl"] for h in current_holdings)
+    total_pl = realized + unrealized
+    total_pl_pct = (
+        float(total_pl / float(pocket) * 100) if pocket > 0 else 0.0
+    )
+
+    return {
+        "total_invested": round(float(pocket), 2),
+        "portfolio_value": round(portfolio_value, 2),
+        "in_the_safe": round(float(safe), 2),
+        "realized_pl": round(realized, 2),
+        "unrealized_pl": round(unrealized, 2),
+        "total_pl": round(total_pl, 2),
+        "total_pl_pct": round(total_pl_pct, 2),
+    }
+
+
+def _empty_totals() -> dict:
+    return {
+        "total_invested": 0,
+        "portfolio_value": 0,
+        "in_the_safe": 0,
+        "realized_pl": 0,
+        "unrealized_pl": 0,
+        "total_pl": 0,
+        "total_pl_pct": 0,
+    }
+
+
+def _portfolio_cash_flow(
+    db: Session, portfolio_id: int
+) -> tuple[Decimal, Decimal]:
+    """Track money from pocket vs money in the safe.
+
+    Process *all* portfolio transactions chronologically.
+    On buy  → use cash in safe first; only the remainder is from pocket.
+    On sell → proceeds go into the safe.
+
+    Returns ``(pocket, safe)``.
+    """
+    rows = db.execute(
+        text(
+            """
+            SELECT operation, quantity, price
+            FROM transactions
+            WHERE portfolio_id = :pid
+            ORDER BY date, id
+            """
+        ),
+        {"pid": portfolio_id},
+    ).fetchall()
+
+    pocket = Decimal(0)
+    safe = Decimal(0)
+
+    for operation, quantity, price in rows:
+        amount = Decimal(str(quantity)) * Decimal(str(price))
+        if operation.lower() == "buy":
+            from_safe = min(safe, amount)
+            from_pocket = amount - from_safe
+            safe -= from_safe
+            pocket += from_pocket
+        else:  # sell
+            safe += amount
+
+    return pocket, safe
+
+
+# ------------------------------------------------------------------
+# Internal helpers (backfill)
 # ------------------------------------------------------------------
 
 def _distinct_tickers(db: Session, portfolio_id: int) -> list[str]:

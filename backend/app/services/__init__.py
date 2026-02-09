@@ -4,7 +4,10 @@ from app.services.user_service import (
     email_exists,
     update_profile,
 )
-from app.services.portfolio_service import backfill_portfolio_prices
+from app.services.portfolio_service import (
+    backfill_portfolio_prices,
+    calculate_portfolio_pl,
+)
 
 __all__ = [
     "get_profile_by_id",
@@ -12,4 +15,5 @@ __all__ = [
     "email_exists",
     "update_profile",
     "backfill_portfolio_prices",
+    "calculate_portfolio_pl",
 ]
