@@ -6,10 +6,10 @@ Logic per ticker:
    where the user holds ≥ 1 share.
 2. For each range, download daily close prices from yfinance
    (always excluding today).
-3. Before writing, detect stock splits: compare the DB price for the
-   last transaction day before today against the yfinance price.
-   If they differ → delete all stored prices for that ticker and
-   re-insert the fresh (split-adjusted) data.
+3. Before writing, detect stock splits from yfinance split events in
+   the downloaded window. If a split is newer than the latest stored
+   market-price date, delete stored prices for that ticker and
+   re-insert the fresh data.
 4. Insert with ON CONFLICT DO NOTHING so re-runs are safe.
 """
 
@@ -412,14 +412,46 @@ def _filter_to_ranges(
 def _handle_split_detection(
     db: Session, ticker: str, fresh_prices: pd.DataFrame
 ) -> None:
-    """If the most-recent stored price differs from yfinance, assume a split
-    and delete all stored prices for this ticker so they get re-inserted.
-    """
-    # Find the last date for this ticker that we already have in the DB
+    """Detect new splits in the downloaded window and refresh ticker prices."""
+    if fresh_prices.empty:
+        return
+
+    window_start = fresh_prices["date"].min()
+    window_end = fresh_prices["date"].max()
+
+    try:
+        split_series = yf.Ticker(ticker).splits
+    except Exception:
+        return
+
+    if split_series is None or split_series.empty:
+        return
+
+    split_dates: list[date] = []
+    for split_ts, split_ratio in split_series.items():
+        if pd.isna(split_ratio) or float(split_ratio) <= 0:
+            continue
+        split_dt = pd.to_datetime(split_ts, errors="coerce")
+        if pd.isna(split_dt):
+            continue
+        split_dates.append(split_dt.date())
+
+    if not split_dates:
+        return
+
+    in_window_splits = [
+        split_date
+        for split_date in split_dates
+        if window_start <= split_date <= window_end
+    ]
+    if not in_window_splits:
+        return
+
+    # Find the latest date for this ticker that we already have in the DB
     row = db.execute(
         text(
             """
-            SELECT date, close FROM market_prices
+            SELECT date FROM market_prices
             WHERE ticker = :ticker
             ORDER BY date DESC
             LIMIT 1
@@ -431,18 +463,10 @@ def _handle_split_detection(
     if row is None:
         return  # Nothing stored yet — no split check needed
 
-    stored_date, stored_close = row[0], float(row[1])
+    latest_stored_date = row[0]
 
-    # Find the same date in the fresh data
-    match = fresh_prices[fresh_prices["date"] == stored_date]
-    if match.empty:
-        return  # That date isn't in our download window — skip check
-
-    yf_close = float(match.iloc[0]["close"])
-
-    # Allow tiny float tolerance
-    if abs(stored_close - yf_close) > 0.02:
-        # Split detected — wipe and let the caller re-insert
+    if any(split_date > latest_stored_date for split_date in in_window_splits):
+        # New split detected — wipe and let the caller re-insert
         db.execute(
             text("DELETE FROM market_prices WHERE ticker = :ticker"),
             {"ticker": ticker},
