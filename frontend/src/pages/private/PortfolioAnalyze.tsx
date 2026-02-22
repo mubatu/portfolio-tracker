@@ -66,6 +66,10 @@ interface PerformancePoint {
   pl_pct: number;
 }
 
+interface ChartPerformancePoint extends PerformancePoint {
+  daily_pl_pct: number;
+}
+
 interface PerformanceSeries {
   start_date: string | null;
   end_date: string | null;
@@ -434,6 +438,23 @@ function PerformanceChart({
       ...(includeYear ? { year: 'numeric' } : {}),
     }).format(parseIsoDate(value));
 
+  const fmtPct = (value: number) =>
+    `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
+
+  const chartPoints: ChartPerformancePoint[] = series.points.map((point, index) => {
+    if (index === 0) {
+      return { ...point, daily_pl_pct: 0 };
+    }
+
+    const previous = series.points[index - 1];
+    const dailyPct =
+      previous.price !== 0
+        ? ((point.price / previous.price) - 1) * 100
+        : 0;
+
+    return { ...point, daily_pl_pct: dailyPct };
+  });
+
   const rangeText =
     series.start_date && series.end_date
       ? t('analyze.chart.range', {
@@ -467,7 +488,7 @@ function PerformanceChart({
       ) : (
         <div className="h-[320px]">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={series.points} margin={{ top: 8, right: 16, left: 0, bottom: 28 }}>
+            <LineChart data={chartPoints} margin={{ top: 8, right: 16, left: 0, bottom: 28 }}>
               <CartesianGrid strokeDasharray="4 4" stroke="hsl(var(--border))" />
               <XAxis
                 dataKey="date"
@@ -501,15 +522,35 @@ function PerformanceChart({
                 }}
               />
               <Tooltip
-                labelFormatter={(value) => fmtDate(String(value), true)}
-                formatter={(value) => [
-                  fmtIndex(Number(value ?? 0)),
-                  t('analyze.chart.seriesLabel'),
-                ]}
-                contentStyle={{
-                  borderRadius: '0.75rem',
-                  borderColor: 'hsl(var(--border))',
-                  backgroundColor: 'hsl(var(--card))',
+                content={({ active, payload, label }) => {
+                  if (!active || !payload || payload.length === 0) {
+                    return null;
+                  }
+
+                  const point = payload[0]?.payload as ChartPerformancePoint | undefined;
+                  if (!point) {
+                    return null;
+                  }
+
+                  return (
+                    <div
+                      className="rounded-xl border px-3 py-2 text-sm shadow-sm"
+                      style={{
+                        borderColor: 'hsl(var(--border))',
+                        backgroundColor: 'hsl(var(--card))',
+                      }}
+                    >
+                      <p className="font-medium mb-1">
+                        {fmtDate(String(label), true)}
+                      </p>
+                      <p>
+                        {t('analyze.chart.seriesLabel')}: {fmtIndex(point.price)}
+                      </p>
+                      <p style={{ color: plColor(point.daily_pl_pct) }}>
+                        {t('analyze.chart.dailyPlLabel')}: {fmtPct(point.daily_pl_pct)}
+                      </p>
+                    </div>
+                  );
                 }}
               />
               <Line

@@ -83,6 +83,8 @@
       "noRange": "No date range available yet.",
       "noData": "No historical performance data available for this period.",
       "seriesLabel": "Portfolio Index",
+      "plLabel": "P/L",
+      "dailyPlLabel": "Daily P/L",
       "priceAxis": "Price",
       "dateAxis": "Date"
     },
