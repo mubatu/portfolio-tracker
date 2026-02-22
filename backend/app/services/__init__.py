@@ -8,6 +8,7 @@ from app.services.portfolio_service import (
     backfill_portfolio_prices,
     calculate_adjusted_transaction_price,
     calculate_adjusted_transaction_values,
+    calculate_portfolio_performance_series,
     calculate_portfolio_pl,
     refresh_portfolio_adjusted_prices,
 )
@@ -20,6 +21,7 @@ __all__ = [
     "backfill_portfolio_prices",
     "calculate_adjusted_transaction_price",
     "calculate_adjusted_transaction_values",
+    "calculate_portfolio_performance_series",
     "calculate_portfolio_pl",
     "refresh_portfolio_adjusted_prices",
 ]

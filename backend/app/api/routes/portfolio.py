@@ -9,6 +9,7 @@ from app.db import get_db
 from app.services.portfolio_service import (
     backfill_portfolio_prices,
     calculate_adjusted_transaction_values,
+    calculate_portfolio_performance_series,
     calculate_portfolio_pl,
     refresh_portfolio_adjusted_prices,
 )
@@ -54,10 +55,16 @@ async def analyze_portfolio(
     # Step 3: calculate profit/loss
     pl_result = calculate_portfolio_pl(db, portfolio_id)
 
+    # Step 4: build normalized daily performance line (base 100)
+    performance_series = calculate_portfolio_performance_series(
+        db, portfolio_id
+    )
+
     return {
         "portfolio_id": portfolio_id,
         "backfill": backfill_result,
         "adjusted_prices": adjusted_price_result,
+        "performance_series": performance_series,
         **pl_result,
     }
 

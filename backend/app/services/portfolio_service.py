@@ -18,7 +18,7 @@ from decimal import Decimal
 
 import pandas as pd
 import yfinance as yf
-from sqlalchemy import text
+from sqlalchemy import bindparam, text
 from sqlalchemy.orm import Session
 
 SPLIT_PRICE_SCALE = Decimal("0.00000001")
@@ -223,6 +223,197 @@ def refresh_portfolio_adjusted_prices(db: Session, portfolio_id: int) -> dict:
         "transactions_processed": len(rows),
         "transactions_updated": updated_count,
         "tickers_processed": len(split_cache),
+    }
+
+
+def calculate_portfolio_performance_series(db: Session, portfolio_id: int) -> dict:
+    """Build a daily normalized performance series (base value = 100).
+
+    Range:
+      - start = first buy date in the portfolio
+      - end = yesterday (today is excluded)
+
+    Method:
+      - Replays transactions chronologically with the same average-cost and
+        pocket/safe logic used in totals.
+      - On each included trading day, computes index as:
+          100 + (total_pl_pct_of_that_day)
+      This keeps chart values consistent with metric-card math.
+    """
+    yesterday = date.today() - timedelta(days=1)
+    tx_rows = db.execute(
+        text(
+            """
+            SELECT
+                date,
+                ticker,
+                operation,
+                COALESCE(adjusted_quantity, quantity),
+                COALESCE(adjusted_price, price)
+            FROM transactions
+            WHERE portfolio_id = :pid
+            ORDER BY date, id
+            """
+        ),
+        {"pid": portfolio_id},
+    ).fetchall()
+
+    if not tx_rows:
+        return {"start_date": None, "end_date": None, "points": []}
+
+    first_buy_date = None
+    for txn_date, _, operation, _, _ in tx_rows:
+        if operation.lower() == "buy":
+            first_buy_date = txn_date
+            break
+
+    if first_buy_date is None:
+        return {"start_date": None, "end_date": None, "points": []}
+
+    if first_buy_date > yesterday:
+        return {
+            "start_date": first_buy_date.isoformat(),
+            "end_date": yesterday.isoformat(),
+            "points": [],
+        }
+
+    tickers = sorted({ticker for _, ticker, _, _, _ in tx_rows})
+    prices_by_date = _market_prices_by_date(
+        db,
+        tickers=tickers,
+        start_date=first_buy_date,
+        end_date=yesterday,
+    )
+
+    txns_by_date: dict[date, list[tuple[str, str, Decimal, Decimal]]] = {}
+    for txn_date, ticker, operation, quantity, price in tx_rows:
+        if txn_date < first_buy_date or txn_date > yesterday:
+            continue
+
+        txns_by_date.setdefault(txn_date, []).append(
+            (
+                ticker,
+                operation.lower(),
+                Decimal(str(quantity)),
+                Decimal(str(price)),
+            )
+        )
+
+    base_value = Decimal(100)
+    holdings_qty: dict[str, Decimal] = {}
+    holdings_cost: dict[str, Decimal] = {}
+    realized_pl_by_ticker: dict[str, Decimal] = {}
+    latest_closes: dict[str, Decimal] = {}
+    pocket = Decimal(0)
+    safe = Decimal(0)
+    points: list[dict] = []
+
+    current_day = first_buy_date
+    while current_day <= yesterday:
+        day_prices = prices_by_date.get(current_day, [])
+        day_price_tickers = {ticker for ticker, _ in day_prices}
+
+        has_priced_holding_start = any(
+            quantity > 0 and ticker in day_price_tickers
+            for ticker, quantity in holdings_qty.items()
+        )
+
+        for ticker, operation, quantity, price in txns_by_date.get(
+            current_day, []
+        ):
+            amount = quantity * price
+            current_qty = holdings_qty.get(ticker, Decimal(0))
+            current_cost = holdings_cost.get(ticker, Decimal(0))
+
+            if operation == "buy":
+                holdings_qty[ticker] = current_qty + quantity
+                holdings_cost[ticker] = current_cost + amount
+
+                from_safe = min(safe, amount)
+                from_pocket = amount - from_safe
+                safe -= from_safe
+                pocket += from_pocket
+                continue
+
+            if current_qty > 0:
+                avg_cost = current_cost / current_qty
+                sell_cost = quantity * avg_cost
+                realized_pl = quantity * (price - avg_cost)
+                realized_pl_by_ticker[ticker] = (
+                    realized_pl_by_ticker.get(ticker, Decimal(0))
+                    + realized_pl
+                )
+
+                next_qty = current_qty - quantity
+                next_cost = current_cost - sell_cost
+                if next_qty <= 0:
+                    holdings_qty.pop(ticker, None)
+                    holdings_cost.pop(ticker, None)
+                else:
+                    holdings_qty[ticker] = next_qty
+                    holdings_cost[ticker] = next_cost
+            else:
+                # Keep realized logic in line with _ticker_pl:
+                # sells with no position do not alter realized/cost-basis.
+                pass
+
+            safe += amount
+
+        for ticker, close in day_prices:
+            latest_closes[ticker] = close
+
+        has_priced_holding_end = any(
+            quantity > 0 and ticker in day_price_tickers
+            for ticker, quantity in holdings_qty.items()
+        )
+
+        if has_priced_holding_start or has_priced_holding_end:
+            realized_total = sum(realized_pl_by_ticker.values(), Decimal(0))
+            unrealized_total = Decimal(0)
+
+            for ticker, quantity in holdings_qty.items():
+                if quantity <= 0:
+                    continue
+
+                latest_price = latest_closes.get(ticker)
+                if latest_price is None:
+                    continue
+
+                cost_basis = holdings_cost.get(ticker, Decimal(0))
+                avg_cost = cost_basis / quantity
+                unrealized_total += quantity * (latest_price - avg_cost)
+
+            total_pl = realized_total + unrealized_total
+            pl_pct = (
+                (total_pl / pocket) * Decimal(100)
+                if pocket > 0
+                else Decimal(0)
+            )
+            index_value = base_value + pl_pct
+            if not points:
+                # Normalize first plotted trading day to the base line.
+                points.append(
+                    {
+                        "date": current_day.isoformat(),
+                        "price": 100.0,
+                        "pl_pct": 0.0,
+                    }
+                )
+            else:
+                points.append(
+                    {
+                        "date": current_day.isoformat(),
+                        "price": round(float(index_value), 4),
+                        "pl_pct": round(float(pl_pct), 4),
+                    }
+                )
+
+        current_day += timedelta(days=1)
+
+    return {
+        "start_date": first_buy_date.isoformat(),
+        "end_date": yesterday.isoformat(),
+        "points": points,
     }
 
 
@@ -474,6 +665,45 @@ def _distinct_tickers(db: Session, portfolio_id: int) -> list[str]:
         {"pid": portfolio_id},
     ).fetchall()
     return [r[0] for r in rows]
+
+
+def _market_prices_by_date(
+    db: Session,
+    tickers: list[str],
+    start_date: date,
+    end_date: date,
+) -> dict[date, list[tuple[str, Decimal]]]:
+    if not tickers:
+        return {}
+
+    stmt = (
+        text(
+            """
+            SELECT ticker, date, close
+            FROM market_prices
+            WHERE ticker IN :tickers
+              AND date BETWEEN :start_date AND :end_date
+            ORDER BY date, ticker
+            """
+        )
+        .bindparams(bindparam("tickers", expanding=True))
+    )
+
+    rows = db.execute(
+        stmt,
+        {
+            "tickers": tickers,
+            "start_date": start_date,
+            "end_date": end_date,
+        },
+    ).fetchall()
+
+    prices_by_date: dict[date, list[tuple[str, Decimal]]] = {}
+    for ticker, price_date, close in rows:
+        prices_by_date.setdefault(price_date, []).append(
+            (ticker, Decimal(str(close)))
+        )
+    return prices_by_date
 
 
 def _holding_ranges(

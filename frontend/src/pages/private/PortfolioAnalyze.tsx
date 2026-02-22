@@ -2,6 +2,15 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import {
+  CartesianGrid,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
+import {
   ArrowLeft,
   Loader2,
   TrendingUp,
@@ -13,7 +22,12 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { analyzePortfolio, getPortfolioBySlug } from '@/services/portfolioService';
-import { getLocale, getMarketCurrency, toDisplayTicker } from '@/config';
+import {
+  getDateLocale,
+  getLocale,
+  getMarketCurrency,
+  toDisplayTicker,
+} from '@/config';
 
 // ── Helpers ──────────────────────────────────────────────
 
@@ -46,9 +60,22 @@ interface AnalysisTotals {
   total_pl_pct: number;
 }
 
+interface PerformancePoint {
+  date: string;
+  price: number;
+  pl_pct: number;
+}
+
+interface PerformanceSeries {
+  start_date: string | null;
+  end_date: string | null;
+  points: PerformancePoint[];
+}
+
 interface AnalysisResponse {
   portfolio_id: number;
   backfill: unknown;
+  performance_series: PerformanceSeries;
   current_holdings: CurrentHolding[];
   closed_positions: ClosedPosition[];
   totals: AnalysisTotals;
@@ -59,6 +86,11 @@ const plColor = (value: number) =>
 
 const plBg = (value: number) =>
   value >= 0 ? 'hsl(142 76% 36% / 0.1)' : 'hsl(0 84% 60% / 0.1)';
+
+const parseIsoDate = (isoDate: string) => {
+  const [year, month, day] = isoDate.split('-').map(Number);
+  return new Date(year, month - 1, day);
+};
 
 // ── Component ────────────────────────────────────────────
 
@@ -87,6 +119,7 @@ export function PortfolioAnalyze() {
 
   const currencyCode = portfolio ? getMarketCurrency(portfolio.market) : 'TRY';
   const numberLocale = getLocale(i18n.language);
+  const dateLocale = getDateLocale(i18n.language);
 
   const fmt = (v: number) =>
     new Intl.NumberFormat(numberLocale, {
@@ -150,6 +183,13 @@ export function PortfolioAnalyze() {
       {/* Content */}
       {!isLoading && analysis && (
         <>
+          <PerformanceChart
+            series={analysis.performance_series}
+            numberLocale={numberLocale}
+            dateLocale={dateLocale}
+            lineColor={plColor(analysis.totals.total_pl)}
+          />
+
           {/* ── Summary Cards ─────────────────────────── */}
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-8">
             {/* Total Invested (from pocket) */}
@@ -367,6 +407,128 @@ export function PortfolioAnalyze() {
 }
 
 // ── Sub-component ────────────────────────────────────────
+
+function PerformanceChart({
+  series,
+  numberLocale,
+  dateLocale,
+  lineColor,
+}: {
+  series: PerformanceSeries;
+  numberLocale: string;
+  dateLocale: string;
+  lineColor: string;
+}) {
+  const { t } = useTranslation();
+
+  const fmtIndex = (value: number) =>
+    new Intl.NumberFormat(numberLocale, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(value);
+
+  const fmtDate = (value: string, includeYear = false) =>
+    new Intl.DateTimeFormat(dateLocale, {
+      day: 'numeric',
+      month: 'short',
+      ...(includeYear ? { year: 'numeric' } : {}),
+    }).format(parseIsoDate(value));
+
+  const rangeText =
+    series.start_date && series.end_date
+      ? t('analyze.chart.range', {
+          start: fmtDate(series.start_date, true),
+          end: fmtDate(series.end_date, true),
+        })
+      : t('analyze.chart.noRange');
+
+  return (
+    <section
+      className="rounded-xl border p-4 md:p-5 mb-8"
+      style={{
+        borderColor: 'hsl(var(--border))',
+        backgroundColor: 'hsl(var(--card))',
+      }}
+    >
+      <h2 className="text-lg font-semibold mb-1">{t('analyze.chart.title')}</h2>
+      <p className="text-sm mb-4" style={{ color: 'hsl(var(--muted-foreground))' }}>
+        {rangeText}
+      </p>
+
+      {series.points.length === 0 ? (
+        <div
+          className="rounded-lg border-2 border-dashed p-8 text-center"
+          style={{ borderColor: 'hsl(var(--border))' }}
+        >
+          <p style={{ color: 'hsl(var(--muted-foreground))' }}>
+            {t('analyze.chart.noData')}
+          </p>
+        </div>
+      ) : (
+        <div className="h-[320px]">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={series.points} margin={{ top: 8, right: 16, left: 0, bottom: 28 }}>
+              <CartesianGrid strokeDasharray="4 4" stroke="hsl(var(--border))" />
+              <XAxis
+                dataKey="date"
+                minTickGap={26}
+                tickFormatter={(value) => fmtDate(String(value))}
+                tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }}
+                height={56}
+                label={{
+                  value: t('analyze.chart.dateAxis'),
+                  position: 'insideBottom',
+                  offset: -4,
+                  style: {
+                    fill: 'hsl(var(--muted-foreground))',
+                    fontSize: 12,
+                  },
+                }}
+              />
+              <YAxis
+                dataKey="price"
+                width={72}
+                tickFormatter={(value) => fmtIndex(Number(value))}
+                tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }}
+                label={{
+                  value: t('analyze.chart.priceAxis'),
+                  angle: -90,
+                  position: 'insideLeft',
+                  style: {
+                    fill: 'hsl(var(--muted-foreground))',
+                    fontSize: 12,
+                  },
+                }}
+              />
+              <Tooltip
+                labelFormatter={(value) => fmtDate(String(value), true)}
+                formatter={(value) => [
+                  fmtIndex(Number(value ?? 0)),
+                  t('analyze.chart.seriesLabel'),
+                ]}
+                contentStyle={{
+                  borderRadius: '0.75rem',
+                  borderColor: 'hsl(var(--border))',
+                  backgroundColor: 'hsl(var(--card))',
+                }}
+              />
+              <Line
+                type="monotone"
+                dataKey="price"
+                name={t('analyze.chart.seriesLabel')}
+                stroke={lineColor}
+                strokeWidth={2.5}
+                dot={false}
+                activeDot={{ r: 4 }}
+                isAnimationActive={false}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+    </section>
+  );
+}
 
 function SummaryCard({
   icon,

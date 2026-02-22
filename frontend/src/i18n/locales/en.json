@@ -77,6 +77,15 @@
     "backToDashboard": "Back to Dashboard",
     "title": "{{name}} — Analysis",
     "subtitle": "Average cost method · prices exclude today",
+    "chart": {
+      "title": "Performance Chart (Base 100)",
+      "range": "From {{start}} to {{end}}",
+      "noRange": "No date range available yet.",
+      "noData": "No historical performance data available for this period.",
+      "seriesLabel": "Portfolio Index",
+      "priceAxis": "Price",
+      "dateAxis": "Date"
+    },
     "totalInvested": "Total Invested",
     "portfolioValue": "Portfolio Value",
     "inTheSafe": "In the Safe",
@@ -87,7 +96,7 @@
     "noClosedPositions": "No closed positions yet.",
     "table": {
       "ticker": "Ticker",
-      "qty": "Qty",
+      "qty": "Quantity",
       "avgCost": "Avg Cost",
       "price": "Price",
       "value": "Value",
