@@ -86,12 +86,16 @@ export function PortfolioAnalyze() {
   const isLoading = isPortfolioLoading || isAnalysisLoading;
 
   const currencyCode = portfolio ? getMarketCurrency(portfolio.market) : 'TRY';
+  const numberLocale = getLocale(i18n.language);
 
   const fmt = (v: number) =>
-    new Intl.NumberFormat(getLocale(i18n.language), {
+    new Intl.NumberFormat(numberLocale, {
       style: 'currency',
       currency: currencyCode,
     }).format(v);
+
+  const fmtNumber = (v: number) =>
+    new Intl.NumberFormat(numberLocale).format(v);
 
   const pct = (v: number) =>
     `${v >= 0 ? '+' : ''}${v.toFixed(2)}%`;
@@ -232,7 +236,7 @@ export function PortfolioAnalyze() {
                           {toDisplayTicker(h.ticker, portfolio?.market ?? 'BIST')}
                         </td>
                         <td className="text-right px-4 py-3">
-                          {h.quantity.toLocaleString()}
+                          {fmtNumber(h.quantity)}
                         </td>
                         <td className="text-right px-4 py-3">
                           {fmt(h.avg_cost)}
