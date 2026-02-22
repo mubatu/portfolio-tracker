@@ -1,15 +1,34 @@
+from datetime import date
+from decimal import Decimal
 from typing import Annotated
-from fastapi import APIRouter, Depends, Path, HTTPException, status
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, Depends, Path, HTTPException, Query, status
 from sqlalchemy import text
+from sqlalchemy.orm import Session
 from app.api.deps import CurrentUser
 from app.db import get_db
 from app.services.portfolio_service import (
     backfill_portfolio_prices,
+    calculate_adjusted_transaction_values,
     calculate_portfolio_pl,
+    refresh_portfolio_adjusted_prices,
 )
 
 router = APIRouter(prefix="/portfolios", tags=["Portfolios"])
+
+
+def _ensure_portfolio_ownership(
+    db: Session, portfolio_id: int, user_id: str
+) -> None:
+    """Ensure portfolio belongs to requesting user."""
+    row = db.execute(
+        text("SELECT id FROM portfolios WHERE id = :pid AND user_id = :uid"),
+        {"pid": portfolio_id, "uid": user_id},
+    ).fetchone()
+    if row is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Portfolio not found",
+        )
 
 
 @router.get("/{portfolio_id}/analyze")
@@ -21,28 +40,56 @@ async def analyze_portfolio(
     """
     Analyze a portfolio:
       Step 1 — backfill market_prices for every holding.
-      Step 2 — calculate profit/loss (average cost method).
+      Step 2 — refresh split-adjusted transaction prices.
+      Step 3 — calculate profit/loss (average cost method).
     """
-    # Verify the portfolio belongs to the current user
-    row = db.execute(
-        text("SELECT id FROM portfolios WHERE id = :pid AND user_id = :uid"),
-        {"pid": portfolio_id, "uid": str(current_user.id)},
-    ).fetchone()
-
-    if row is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Portfolio not found",
-        )
+    _ensure_portfolio_ownership(db, portfolio_id, str(current_user.id))
 
     # Step 1: backfill prices
     backfill_result = backfill_portfolio_prices(db, portfolio_id)
 
-    # Step 2: calculate profit/loss
+    # Step 2: refresh adjusted prices
+    adjusted_price_result = refresh_portfolio_adjusted_prices(db, portfolio_id)
+
+    # Step 3: calculate profit/loss
     pl_result = calculate_portfolio_pl(db, portfolio_id)
 
     return {
         "portfolio_id": portfolio_id,
         "backfill": backfill_result,
+        "adjusted_prices": adjusted_price_result,
         **pl_result,
+    }
+
+
+@router.get("/{portfolio_id}/adjusted-price")
+async def get_adjusted_transaction_price(
+    current_user: CurrentUser,
+    db: Annotated[Session, Depends(get_db)],
+    portfolio_id: int = Path(..., description="The portfolio ID"),
+    ticker: str = Query(..., min_length=1, description="Ticker symbol"),
+    quantity: Decimal = Query(..., gt=0, description="Transaction quantity"),
+    price: Decimal = Query(..., gt=0, description="Transaction price"),
+    txn_date: date = Query(..., alias="date", description="Transaction date"),
+):
+    """Get split-adjusted price for a transaction input."""
+    _ensure_portfolio_ownership(db, portfolio_id, str(current_user.id))
+
+    normalized_ticker = ticker.strip().upper()
+    adjusted_quantity, adjusted_price, split_factor = calculate_adjusted_transaction_values(
+        ticker=normalized_ticker,
+        quantity=quantity,
+        price=price,
+        txn_date=txn_date,
+    )
+
+    return {
+        "portfolio_id": portfolio_id,
+        "ticker": normalized_ticker,
+        "date": txn_date.isoformat(),
+        "quantity": float(quantity),
+        "price": float(price),
+        "adjusted_quantity": float(adjusted_quantity),
+        "adjusted_price": float(adjusted_price),
+        "split_factor": float(split_factor),
     }

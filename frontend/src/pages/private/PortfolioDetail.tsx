@@ -339,7 +339,13 @@ export function PortfolioDetail() {
                           {t('portfolio.transactions.quantity')}
                         </th>
                         <th className="text-right px-4 py-3 text-sm font-medium">
+                          {t('portfolio.transactions.adjustedQuantity')}
+                        </th>
+                        <th className="text-right px-4 py-3 text-sm font-medium">
                           {t('portfolio.transactions.price')}
+                        </th>
+                        <th className="text-right px-4 py-3 text-sm font-medium">
+                          {t('portfolio.transactions.adjustedPrice')}
                         </th>
                         <th className="text-right px-4 py-3 text-sm font-medium">
                           {t('portfolio.transactions.total')}
@@ -398,7 +404,18 @@ export function PortfolioDetail() {
                             {Number(transaction.quantity).toLocaleString()}
                           </td>
                           <td className="text-right px-4 py-3">
+                            {Number(
+                              transaction.adjusted_quantity ?? transaction.quantity
+                            ).toLocaleString()}
+                          </td>
+                          <td className="text-right px-4 py-3">
                             {formatCurrency(Number(transaction.price), getMarketCurrency(portfolio.market))}
+                          </td>
+                          <td className="text-right px-4 py-3">
+                            {formatCurrency(
+                              Number(transaction.adjusted_price ?? transaction.price),
+                              getMarketCurrency(portfolio.market)
+                            )}
                           </td>
                           <td className="text-right px-4 py-3 font-medium">
                             {formatCurrency(

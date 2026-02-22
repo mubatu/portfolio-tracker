@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { apiClient } from '@/lib/api';
 import { type Market, toFullTicker } from '@/config';
 export { analyzePortfolio } from '@/lib/api';
 
@@ -18,7 +19,9 @@ export interface Transaction {
   ticker: string;
   operation: 'buy' | 'sell';
   quantity: number;
+  adjusted_quantity?: number | null;
   price: number;
+  adjusted_price?: number | null;
   date: string;
   created_at: string;
 }
@@ -265,6 +268,40 @@ export async function getTransactionsBySlug(slug: string): Promise<Transaction[]
   return data || [];
 }
 
+async function getAdjustedValues(
+  portfolioId: number,
+  ticker: string,
+  quantity: number,
+  price: number,
+  txnDate: string
+): Promise<{ adjustedQuantity: number; adjustedPrice: number }> {
+  try {
+    const response = await apiClient.get(`/portfolios/${portfolioId}/adjusted-price`, {
+      params: {
+        ticker,
+        quantity,
+        price,
+        date: txnDate,
+      },
+    });
+
+    const adjustedQuantity = Number(response.data?.adjusted_quantity);
+    const adjustedPrice = Number(response.data?.adjusted_price);
+    return {
+      adjustedQuantity: Number.isFinite(adjustedQuantity)
+        ? adjustedQuantity
+        : quantity,
+      adjustedPrice: Number.isFinite(adjustedPrice) ? adjustedPrice : price,
+    };
+  } catch {
+    // Fallback to raw values if API is unavailable; analyze flow refreshes later.
+    return {
+      adjustedQuantity: quantity,
+      adjustedPrice: price,
+    };
+  }
+}
+
 export async function createTransaction(input: CreateTransactionInput): Promise<Transaction> {
   const { data: { user } } = await supabase.auth.getUser();
   
@@ -278,15 +315,25 @@ export async function createTransaction(input: CreateTransactionInput): Promise<
     throw new Error('Portfolio not found');
   }
   const portfolioMarket = portfolio.market || 'BIST';
+  const fullTicker = toFullTicker(input.ticker.toUpperCase(), portfolioMarket);
+  const adjusted = await getAdjustedValues(
+    input.portfolio_id,
+    fullTicker,
+    input.quantity,
+    input.price,
+    input.date
+  );
 
   const { data, error } = await supabase
     .from('transactions')
     .insert({
       portfolio_id: input.portfolio_id,
-      ticker: toFullTicker(input.ticker.toUpperCase(), portfolioMarket),
+      ticker: fullTicker,
       operation: input.operation,
       quantity: input.quantity,
+      adjusted_quantity: adjusted.adjustedQuantity,
       price: input.price,
+      adjusted_price: adjusted.adjustedPrice,
       date: input.date,
     })
     .select()
@@ -357,14 +404,24 @@ export async function updateTransaction(input: UpdateTransactionInput): Promise<
     throw new Error('Transaction not found');
   }
   const portfolioMarket = portfolio.market || 'BIST';
+  const fullTicker = toFullTicker(input.ticker.toUpperCase(), portfolioMarket);
+  const adjusted = await getAdjustedValues(
+    existingTransaction.portfolio_id,
+    fullTicker,
+    input.quantity,
+    input.price,
+    input.date
+  );
 
   const { data, error } = await supabase
     .from('transactions')
     .update({
-      ticker: toFullTicker(input.ticker.toUpperCase(), portfolioMarket),
+      ticker: fullTicker,
       operation: input.operation,
       quantity: input.quantity,
+      adjusted_quantity: adjusted.adjustedQuantity,
       price: input.price,
+      adjusted_price: adjusted.adjustedPrice,
       date: input.date,
     })
     .eq('id', input.id)

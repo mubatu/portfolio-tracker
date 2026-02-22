@@ -21,6 +21,9 @@ import yfinance as yf
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+SPLIT_PRICE_SCALE = Decimal("0.00000001")
+SPLIT_QUANTITY_SCALE = Decimal("0.00000001")
+
 
 # ------------------------------------------------------------------
 # Public API
@@ -66,6 +69,161 @@ def backfill_portfolio_prices(db: Session, portfolio_id: int) -> dict:
         summary[ticker] = written
 
     return {"tickers_processed": len(tickers), "details": summary}
+
+
+def calculate_adjusted_transaction_price(
+    ticker: str,
+    price: Decimal,
+    txn_date: date,
+    as_of: date | None = None,
+) -> tuple[Decimal, Decimal]:
+    """Calculate split-adjusted transaction price as of the given date.
+
+    Returns ``(adjusted_price, split_factor)`` where:
+      - ``split_factor`` is the cumulative product of split ratios
+        in ``(txn_date, as_of]``.
+      - ``adjusted_price`` is ``price / split_factor``.
+    """
+    effective_as_of = as_of or date.today()
+    split_events = _fetch_split_events(ticker)
+    split_factor = _split_factor_between_dates(
+        split_events, txn_date, effective_as_of
+    )
+
+    if split_factor <= 0:
+        split_factor = Decimal(1)
+
+    adjusted_price = price / split_factor if split_factor != 1 else price
+    return _quantize_price(adjusted_price), split_factor
+
+
+def calculate_adjusted_transaction_values(
+    ticker: str,
+    quantity: Decimal,
+    price: Decimal,
+    txn_date: date,
+    as_of: date | None = None,
+) -> tuple[Decimal, Decimal, Decimal]:
+    """Calculate split-adjusted quantity & price as of the given date."""
+    effective_as_of = as_of or date.today()
+    split_events = _fetch_split_events(ticker)
+    split_factor = _split_factor_between_dates(
+        split_events, txn_date, effective_as_of
+    )
+
+    if split_factor <= 0:
+        split_factor = Decimal(1)
+
+    adjusted_quantity = (
+        quantity * split_factor if split_factor != 1 else quantity
+    )
+    adjusted_price = price / split_factor if split_factor != 1 else price
+    return (
+        _quantize_quantity(adjusted_quantity),
+        _quantize_price(adjusted_price),
+        split_factor,
+    )
+
+
+def refresh_portfolio_adjusted_prices(db: Session, portfolio_id: int) -> dict:
+    """Refresh split-adjusted transaction fields for a portfolio."""
+    rows = db.execute(
+        text(
+            """
+            SELECT id, ticker, quantity, price, adjusted_quantity, adjusted_price, date
+            FROM transactions
+            WHERE portfolio_id = :pid
+            ORDER BY ticker, date, id
+            """
+        ),
+        {"pid": portfolio_id},
+    ).fetchall()
+
+    if not rows:
+        return {
+            "transactions_processed": 0,
+            "transactions_updated": 0,
+            "tickers_processed": 0,
+        }
+
+    as_of = date.today()
+    split_cache: dict[str, list[tuple[date, Decimal]]] = {}
+    updates: list[dict[str, Decimal | int]] = []
+
+    for (
+        txn_id,
+        ticker,
+        quantity,
+        price,
+        adjusted_quantity,
+        adjusted_price,
+        txn_date,
+    ) in rows:
+        base_quantity = Decimal(str(quantity))
+        base_price = Decimal(str(price))
+        split_events = split_cache.get(ticker)
+        if split_events is None:
+            split_events = _fetch_split_events(ticker)
+            split_cache[ticker] = split_events
+
+        split_factor = _split_factor_between_dates(split_events, txn_date, as_of)
+        new_adjusted_quantity = (
+            base_quantity * split_factor if split_factor != 1 else base_quantity
+        )
+        new_adjusted_quantity = _quantize_quantity(new_adjusted_quantity)
+        new_adjusted_price = (
+            base_price / split_factor if split_factor != 1 else base_price
+        )
+        new_adjusted_price = _quantize_price(new_adjusted_price)
+
+        current_adjusted_quantity = (
+            _quantize_quantity(Decimal(str(adjusted_quantity)))
+            if adjusted_quantity is not None
+            else None
+        )
+        current_adjusted_price = (
+            _quantize_price(Decimal(str(adjusted_price)))
+            if adjusted_price is not None
+            else None
+        )
+        if (
+            current_adjusted_quantity == new_adjusted_quantity
+            and current_adjusted_price == new_adjusted_price
+        ):
+            continue
+
+        updates.append(
+            {
+                "id": int(txn_id),
+                "adjusted_quantity": new_adjusted_quantity,
+                "adjusted_price": new_adjusted_price,
+            }
+        )
+
+    updated_count = 0
+    if updates:
+        result = db.execute(
+            text(
+                """
+                UPDATE transactions
+                SET adjusted_quantity = :adjusted_quantity,
+                    adjusted_price = :adjusted_price
+                WHERE id = :id
+                """
+            ),
+            updates,
+        )
+        db.commit()
+        if result.rowcount is None or result.rowcount < 0:
+            updated_count = len(updates)
+        else:
+            updated_count = result.rowcount
+
+    return {
+        "transactions_processed": len(rows),
+        "transactions_updated": updated_count,
+        "tickers_processed": len(split_cache),
+    }
 
 
 def calculate_portfolio_pl(db: Session, portfolio_id: int) -> dict:
@@ -153,7 +311,7 @@ def _ticker_pl(db: Session, portfolio_id: int, ticker: str) -> dict:
     rows = db.execute(
         text(
             """
-            SELECT operation, quantity, price, date
+            SELECT operation, COALESCE(adjusted_quantity, quantity), COALESCE(adjusted_price, price), date
             FROM transactions
             WHERE portfolio_id = :pid AND ticker = :ticker
             ORDER BY date, id
@@ -168,9 +326,9 @@ def _ticker_pl(db: Session, portfolio_id: int, ticker: str) -> dict:
     total_sold_value = Decimal(0)  # total proceeds from sells
     total_sold_cost = Decimal(0)   # cost basis of sold shares
 
-    for operation, quantity, price, txn_date in rows:
-        q = Decimal(str(quantity))
-        p = Decimal(str(price))
+    for operation, effective_quantity, effective_price, txn_date in rows:
+        q = Decimal(str(effective_quantity))
+        p = Decimal(str(effective_price))
 
         if operation.lower() == "buy":
             cost_basis += q * p
@@ -280,7 +438,7 @@ def _portfolio_cash_flow(
     rows = db.execute(
         text(
             """
-            SELECT operation, quantity, price
+            SELECT operation, COALESCE(adjusted_quantity, quantity), COALESCE(adjusted_price, price)
             FROM transactions
             WHERE portfolio_id = :pid
             ORDER BY date, id
@@ -292,7 +450,8 @@ def _portfolio_cash_flow(
     pocket = Decimal(0)
     safe = Decimal(0)
 
-    for operation, quantity, price in rows:
+    for operation, effective_quantity, price in rows:
+        quantity = effective_quantity
         amount = Decimal(str(quantity)) * Decimal(str(price))
         if operation.lower() == "buy":
             from_safe = min(safe, amount)
@@ -327,7 +486,7 @@ def _holding_ranges(
     rows = db.execute(
         text(
             """
-            SELECT operation, quantity, date
+            SELECT operation, COALESCE(adjusted_quantity, quantity), date
             FROM transactions
             WHERE portfolio_id = :pid AND ticker = :ticker
             ORDER BY date
@@ -419,29 +578,13 @@ def _handle_split_detection(
     window_start = fresh_prices["date"].min()
     window_end = fresh_prices["date"].max()
 
-    try:
-        split_series = yf.Ticker(ticker).splits
-    except Exception:
-        return
-
-    if split_series is None or split_series.empty:
-        return
-
-    split_dates: list[date] = []
-    for split_ts, split_ratio in split_series.items():
-        if pd.isna(split_ratio) or float(split_ratio) <= 0:
-            continue
-        split_dt = pd.to_datetime(split_ts, errors="coerce")
-        if pd.isna(split_dt):
-            continue
-        split_dates.append(split_dt.date())
-
-    if not split_dates:
+    split_events = _fetch_split_events(ticker)
+    if not split_events:
         return
 
     in_window_splits = [
         split_date
-        for split_date in split_dates
+        for split_date, _ in split_events
         if window_start <= split_date <= window_end
     ]
     if not in_window_splits:
@@ -496,3 +639,58 @@ def _upsert_prices(db: Session, ticker: str, prices: pd.DataFrame) -> int:
     )
     db.commit()
     return result.rowcount
+
+
+def _fetch_split_events(ticker: str) -> list[tuple[date, Decimal]]:
+    """Return ticker split events as ``(split_date, ratio)``."""
+    try:
+        split_series = yf.Ticker(ticker).splits
+    except Exception:
+        return []
+
+    if split_series is None or split_series.empty:
+        return []
+
+    split_events: list[tuple[date, Decimal]] = []
+    for split_ts, split_ratio in split_series.items():
+        if pd.isna(split_ratio):
+            continue
+
+        ratio = Decimal(str(split_ratio))
+        if ratio <= 0:
+            continue
+
+        split_dt = pd.to_datetime(split_ts, errors="coerce")
+        if pd.isna(split_dt):
+            continue
+
+        split_events.append((split_dt.date(), ratio))
+
+    split_events.sort(key=lambda x: x[0])
+    return split_events
+
+
+def _split_factor_between_dates(
+    split_events: list[tuple[date, Decimal]],
+    start_date: date,
+    end_date: date,
+) -> Decimal:
+    """Cumulative split factor for ``(start_date, end_date]``."""
+    if end_date <= start_date or not split_events:
+        return Decimal(1)
+
+    factor = Decimal(1)
+    for split_date, ratio in split_events:
+        if start_date < split_date <= end_date:
+            factor *= ratio
+    return factor
+
+
+def _quantize_price(value: Decimal) -> Decimal:
+    """Keep adjusted prices stable across refreshes."""
+    return value.quantize(SPLIT_PRICE_SCALE)
+
+
+def _quantize_quantity(value: Decimal) -> Decimal:
+    """Keep adjusted quantities stable across refreshes."""
+    return value.quantize(SPLIT_QUANTITY_SCALE)
