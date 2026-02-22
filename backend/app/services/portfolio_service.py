@@ -20,6 +20,7 @@ import pandas as pd
 import yfinance as yf
 from sqlalchemy import bindparam, text
 from sqlalchemy.orm import Session
+from app.core.markets import get_market_benchmark_candidates
 
 SPLIT_PRICE_SCALE = Decimal("0.00000001")
 SPLIT_QUANTITY_SCALE = Decimal("0.00000001")
@@ -723,12 +724,7 @@ def _market_open_days(
         return set()
 
     market = _portfolio_market(db, portfolio_id)
-    benchmark_candidates = {
-        # BIST benchmark candidates on Yahoo Finance
-        "BIST": ["XU100.IS", "^XU100"],
-    }
-
-    candidates = benchmark_candidates.get(market or "", [])
+    candidates = get_market_benchmark_candidates(market)
     for benchmark in candidates:
         prices = _download_prices(benchmark, start_date, end_date)
         if not prices.empty:
