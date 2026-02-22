@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Briefcase, Loader2, Trash2, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Modal } from '@/components/ui/Modal';
+import { MARKETS, type Market } from '@/config';
 import {
   getPortfolios,
   createPortfolio,
@@ -21,6 +22,7 @@ export function MyPortfolios() {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [portfolioToDelete, setPortfolioToDelete] = useState<Portfolio | null>(null);
   const [newPortfolioName, setNewPortfolioName] = useState('');
+  const [newPortfolioMarket, setNewPortfolioMarket] = useState<Market>('BIST');
   const [createError, setCreateError] = useState('');
 
   // Fetch portfolios
@@ -40,6 +42,7 @@ export function MyPortfolios() {
       queryClient.invalidateQueries({ queryKey: ['portfolios'] });
       setIsCreateModalOpen(false);
       setNewPortfolioName('');
+      setNewPortfolioMarket('BIST');
       setCreateError('');
     },
     onError: (error: Error) => {
@@ -60,7 +63,10 @@ export function MyPortfolios() {
   const handleCreateSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (newPortfolioName.trim()) {
-      createMutation.mutate({ name: newPortfolioName.trim() });
+      createMutation.mutate({
+        name: newPortfolioName.trim(),
+        market: newPortfolioMarket,
+      });
     }
   };
 
@@ -189,6 +195,17 @@ export function MyPortfolios() {
                 </div>
               </div>
               <h3 className="font-semibold text-lg mb-1">{portfolio.name}</h3>
+              <div className="mb-2">
+                <span
+                  className="inline-flex items-center px-2.5 py-1 rounded text-xs font-medium"
+                  style={{
+                    backgroundColor: 'hsl(var(--muted))',
+                    color: 'hsl(var(--muted-foreground))',
+                  }}
+                >
+                  {t('myPortfolios.card.market', { market: portfolio.market })}
+                </span>
+              </div>
               <div
                 className="flex items-center gap-3 text-sm"
                 style={{ color: 'hsl(var(--muted-foreground))' }}
@@ -218,6 +235,7 @@ export function MyPortfolios() {
         onClose={() => {
           setIsCreateModalOpen(false);
           setNewPortfolioName('');
+          setNewPortfolioMarket('BIST');
           setCreateError('');
         }}
         title={t('myPortfolios.create.title')}
@@ -228,6 +246,7 @@ export function MyPortfolios() {
               onClick={() => {
                 setIsCreateModalOpen(false);
                 setNewPortfolioName('');
+                setNewPortfolioMarket('BIST');
                 setCreateError('');
               }}
             >
@@ -264,6 +283,27 @@ export function MyPortfolios() {
               className="w-full px-3 py-2 rounded-md border bg-transparent"
               style={{ borderColor: 'hsl(var(--input))' }}
             />
+          </div>
+          <div className="mt-4">
+            <label
+              htmlFor="portfolioMarket"
+              className="block text-sm font-medium mb-2"
+            >
+              {t('myPortfolios.create.marketLabel')}
+            </label>
+            <select
+              id="portfolioMarket"
+              value={newPortfolioMarket}
+              onChange={(e) => setNewPortfolioMarket(e.target.value as Market)}
+              className="w-full px-3 py-2 rounded-md border bg-transparent"
+              style={{ borderColor: 'hsl(var(--input))' }}
+            >
+              {MARKETS.map((market) => (
+                <option key={market.value} value={market.value}>
+                  {market.label}
+                </option>
+              ))}
+            </select>
           </div>
           {createError && (
             <p
@@ -318,4 +358,3 @@ export function MyPortfolios() {
     </div>
   );
 }
-

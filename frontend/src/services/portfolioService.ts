@@ -6,6 +6,7 @@ export interface Portfolio {
   id: number;
   user_id: string;
   name: string;
+  market: Market;
   slug: string;
   created_at: string;
   transaction_count?: number;
@@ -16,7 +17,6 @@ export interface Transaction {
   portfolio_id: number;
   ticker: string;
   operation: 'buy' | 'sell';
-  market: Market;
   quantity: number;
   price: number;
   date: string;
@@ -25,13 +25,13 @@ export interface Transaction {
 
 export interface CreatePortfolioInput {
   name: string;
+  market: Market;
 }
 
 export interface CreateTransactionInput {
   portfolio_id: number;
   ticker: string;
   operation: 'buy' | 'sell';
-  market: Market;
   quantity: number;
   price: number;
   date: string;
@@ -41,7 +41,6 @@ export interface UpdateTransactionInput {
   id: number;
   ticker: string;
   operation: 'buy' | 'sell';
-  market: Market;
   quantity: number;
   price: number;
   date: string;
@@ -135,6 +134,7 @@ export async function createPortfolio(input: CreatePortfolioInput): Promise<Port
     .from('portfolios')
     .insert({
       name: input.name,
+      market: input.market,
       user_id: user.id,
     })
     .select()
@@ -248,14 +248,14 @@ export async function createTransaction(input: CreateTransactionInput): Promise<
   if (!portfolio) {
     throw new Error('Portfolio not found');
   }
+  const portfolioMarket = portfolio.market || 'BIST';
 
   const { data, error } = await supabase
     .from('transactions')
     .insert({
       portfolio_id: input.portfolio_id,
-      ticker: toFullTicker(input.ticker.toUpperCase(), input.market),
+      ticker: toFullTicker(input.ticker.toUpperCase(), portfolioMarket),
       operation: input.operation,
-      market: input.market,
       quantity: input.quantity,
       price: input.price,
       date: input.date,
@@ -327,13 +327,13 @@ export async function updateTransaction(input: UpdateTransactionInput): Promise<
   if (!portfolio) {
     throw new Error('Transaction not found');
   }
+  const portfolioMarket = portfolio.market || 'BIST';
 
   const { data, error } = await supabase
     .from('transactions')
     .update({
-      ticker: toFullTicker(input.ticker.toUpperCase(), input.market),
+      ticker: toFullTicker(input.ticker.toUpperCase(), portfolioMarket),
       operation: input.operation,
-      market: input.market,
       quantity: input.quantity,
       price: input.price,
       date: input.date,

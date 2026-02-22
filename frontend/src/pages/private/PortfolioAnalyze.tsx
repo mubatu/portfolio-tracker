@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { analyzePortfolio, getPortfolioBySlug } from '@/services/portfolioService';
-import { getLocale, toDisplayTicker } from '@/config';
+import { getLocale, getMarketCurrency, toDisplayTicker } from '@/config';
 
 // ── Helpers ──────────────────────────────────────────────
 
@@ -85,10 +85,12 @@ export function PortfolioAnalyze() {
 
   const isLoading = isPortfolioLoading || isAnalysisLoading;
 
-  const fmt = (v: number, currency = 'TRY') =>
+  const currencyCode = portfolio ? getMarketCurrency(portfolio.market) : 'TRY';
+
+  const fmt = (v: number) =>
     new Intl.NumberFormat(getLocale(i18n.language), {
       style: 'currency',
-      currency,
+      currency: currencyCode,
     }).format(v);
 
   const pct = (v: number) =>
@@ -227,7 +229,7 @@ export function PortfolioAnalyze() {
                         style={{ borderColor: 'hsl(var(--border))' }}
                       >
                         <td className="px-4 py-3 font-semibold">
-                          {toDisplayTicker(h.ticker, 'BIST')}
+                          {toDisplayTicker(h.ticker, portfolio?.market ?? 'BIST')}
                         </td>
                         <td className="text-right px-4 py-3">
                           {h.quantity.toLocaleString()}
@@ -317,7 +319,7 @@ export function PortfolioAnalyze() {
                         style={{ borderColor: 'hsl(var(--border))' }}
                       >
                         <td className="px-4 py-3 font-semibold">
-                          {toDisplayTicker(c.ticker, 'BIST')}
+                          {toDisplayTicker(c.ticker, portfolio?.market ?? 'BIST')}
                         </td>
                         <td className="text-right px-4 py-3">
                           {fmt(c.total_invested)}

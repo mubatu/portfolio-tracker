@@ -110,18 +110,21 @@
     "card": {
       "transactions": "{{count}} transactions",
       "noTransactions": "No transactions",
+      "market": "Market: {{market}}",
       "created": "Created {{date}}"
     },
     "create": {
       "title": "Create New Portfolio",
       "namePlaceholder": "e.g., Tech Stocks, Retirement Fund",
-      "nameLabel": "Portfolio Name"
+      "nameLabel": "Portfolio Name",
+      "marketLabel": "Market"
     }
   },
   "portfolio": {
     "title": "Portfolio Details",
     "viewing": "Viewing portfolio: {{id}}",
     "back": "Back to Portfolios",
+    "marketTag": "Market: {{market}}",
     "addTransaction": "Add Transaction",
     "transactions": {
       "title": "Transactions",
