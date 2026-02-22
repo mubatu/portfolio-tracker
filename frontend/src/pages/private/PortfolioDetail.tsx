@@ -28,6 +28,56 @@ import {
   toDisplayTicker,
 } from '@/config';
 
+type TransactionOperation = Transaction['operation'];
+
+interface TransactionsTableProps {
+  transactions: Transaction[];
+  market: string;
+  isDeletePending: boolean;
+  onEditTransaction: (transaction: Transaction) => void;
+  onDeleteTransaction: (transactionId: number) => void;
+  formatCurrency: (value: number, currency?: string) => string;
+  formatDate: (dateString: string) => string;
+}
+
+interface TransactionRowProps {
+  transaction: Transaction;
+  market: string;
+  marketCurrency: string;
+  operationLabels: Record<TransactionOperation, string>;
+  actionLabels: {
+    edit: string;
+    delete: string;
+  };
+  isDeletePending: boolean;
+  onEditTransaction: (transaction: Transaction) => void;
+  onDeleteTransaction: (transactionId: number) => void;
+  formatCurrency: (value: number, currency?: string) => string;
+  formatDate: (dateString: string) => string;
+}
+
+const TRANSACTION_OPERATION_STYLES: Record<
+  TransactionOperation,
+  { backgroundColor: string; color: string }
+> = {
+  buy: {
+    backgroundColor: 'hsl(142 76% 36% / 0.1)',
+    color: 'hsl(142 76% 36%)',
+  },
+  sell: {
+    backgroundColor: 'hsl(0 84% 60% / 0.1)',
+    color: 'hsl(0 84% 60%)',
+  },
+};
+
+const GROUP_START_BORDER_STYLE = {
+  borderLeftColor: 'hsl(var(--border))',
+};
+
+const GROUP_END_BORDER_STYLE = {
+  borderRightColor: 'hsl(var(--border))',
+};
+
 export function PortfolioDetail() {
   const { t, i18n } = useTranslation();
   const { slug } = useParams<{ slug: string }>();
@@ -314,157 +364,15 @@ export function PortfolioDetail() {
 
             {/* Transactions Table */}
             {transactions.length > 0 && (
-              <div
-                className="rounded-lg border overflow-hidden"
-                style={{ borderColor: 'hsl(var(--border))' }}
-              >
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead>
-                      <tr
-                        style={{
-                          backgroundColor: 'hsl(var(--muted) / 0.5)',
-                        }}
-                      >
-                        <th className="text-left px-4 py-3 text-sm font-medium">
-                          {t('portfolio.transactions.ticker')}
-                        </th>
-                        <th className="text-left px-4 py-3 text-sm font-medium">
-                          {t('portfolio.transactions.market')}
-                        </th>
-                        <th className="text-left px-4 py-3 text-sm font-medium">
-                          {t('portfolio.transactions.operation')}
-                        </th>
-                        <th className="text-right px-4 py-3 text-sm font-medium">
-                          {t('portfolio.transactions.quantity')}
-                        </th>
-                        <th className="text-right px-4 py-3 text-sm font-medium">
-                          {t('portfolio.transactions.adjustedQuantity')}
-                        </th>
-                        <th className="text-right px-4 py-3 text-sm font-medium">
-                          {t('portfolio.transactions.price')}
-                        </th>
-                        <th className="text-right px-4 py-3 text-sm font-medium">
-                          {t('portfolio.transactions.adjustedPrice')}
-                        </th>
-                        <th className="text-right px-4 py-3 text-sm font-medium">
-                          {t('portfolio.transactions.total')}
-                        </th>
-                        <th className="text-left px-4 py-3 text-sm font-medium">
-                          {t('portfolio.transactions.date')}
-                        </th>
-                        <th className="px-4 py-3 text-sm font-medium w-10"></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {transactions.map((transaction) => (
-                        <tr
-                          key={transaction.id}
-                          className="border-t transition-colors hover:bg-muted/50"
-                          style={{ borderColor: 'hsl(var(--border))' }}
-                        >
-                          <td className="px-4 py-3">
-                            <span className="font-semibold">
-                              {toDisplayTicker(transaction.ticker, portfolio.market)}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3">
-                            <span
-                              className="inline-flex items-center px-2.5 py-1 rounded text-sm font-medium"
-                              style={{
-                                backgroundColor: 'hsl(var(--muted))',
-                              }}
-                            >
-                              {portfolio.market}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3">
-                            <span
-                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-sm font-medium"
-                              style={{
-                                backgroundColor:
-                                  transaction.operation === 'buy'
-                                    ? 'hsl(142 76% 36% / 0.1)'
-                                    : 'hsl(0 84% 60% / 0.1)',
-                                color:
-                                  transaction.operation === 'buy'
-                                    ? 'hsl(142 76% 36%)'
-                                    : 'hsl(0 84% 60%)',
-                              }}
-                            >
-                              {transaction.operation === 'buy' ? (
-                                <TrendingUp className="h-4 w-4" />
-                              ) : (
-                                <TrendingDown className="h-4 w-4" />
-                              )}
-                              {t(`portfolio.transactions.${transaction.operation}`)}
-                            </span>
-                          </td>
-                          <td className="text-right px-4 py-3">
-                            {Number(transaction.quantity).toLocaleString()}
-                          </td>
-                          <td className="text-right px-4 py-3">
-                            {Number(
-                              transaction.adjusted_quantity ?? transaction.quantity
-                            ).toLocaleString()}
-                          </td>
-                          <td className="text-right px-4 py-3">
-                            {formatCurrency(Number(transaction.price), getMarketCurrency(portfolio.market))}
-                          </td>
-                          <td className="text-right px-4 py-3">
-                            {formatCurrency(
-                              Number(transaction.adjusted_price ?? transaction.price),
-                              getMarketCurrency(portfolio.market)
-                            )}
-                          </td>
-                          <td className="text-right px-4 py-3 font-medium">
-                            {formatCurrency(
-                              Number(transaction.quantity) *
-                                Number(transaction.price),
-                              getMarketCurrency(portfolio.market)
-                            )}
-                          </td>
-                          <td
-                            className="px-4 py-3 text-sm"
-                            style={{ color: 'hsl(var(--muted-foreground))' }}
-                          >
-                            {formatDate(transaction.date)}
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="flex items-center gap-1">
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8"
-                                onClick={() => openEditModal(transaction)}
-                              >
-                                <Pencil
-                                  className="h-4 w-4"
-                                  style={{ color: 'hsl(var(--muted-foreground))' }}
-                                />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8"
-                                onClick={() =>
-                                  handleDeleteTransaction(transaction.id)
-                                }
-                                disabled={deleteMutation.isPending}
-                              >
-                                <Trash2
-                                  className="h-4 w-4"
-                                  style={{ color: 'hsl(var(--destructive))' }}
-                                />
-                              </Button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
+              <TransactionsTable
+                transactions={transactions}
+                market={portfolio.market}
+                isDeletePending={deleteMutation.isPending}
+                onEditTransaction={openEditModal}
+                onDeleteTransaction={handleDeleteTransaction}
+                formatCurrency={formatCurrency}
+                formatDate={formatDate}
+              />
             )}
           </div>
         </>
@@ -793,5 +701,255 @@ export function PortfolioDetail() {
         </form>
       </Modal>
     </div>
+  );
+}
+
+function TransactionsTable({
+  transactions,
+  market,
+  isDeletePending,
+  onEditTransaction,
+  onDeleteTransaction,
+  formatCurrency,
+  formatDate,
+}: TransactionsTableProps) {
+  const { t } = useTranslation();
+  const marketCurrency = getMarketCurrency(market);
+  const operationLabels = {
+    buy: t('portfolio.transactions.buy'),
+    sell: t('portfolio.transactions.sell'),
+  } satisfies Record<TransactionOperation, string>;
+  const actionLabels = {
+    edit: t('common.edit'),
+    delete: t('common.delete'),
+  };
+
+  return (
+    <div
+      className="rounded-lg border overflow-hidden"
+      style={{ borderColor: 'hsl(var(--border))' }}
+    >
+      <div className="overflow-x-auto">
+        <table className="w-full">
+          <thead>
+            <tr style={{ backgroundColor: 'hsl(var(--muted) / 0.5)' }}>
+              <th scope="col" className="text-left px-4 py-3 text-sm font-medium">
+                {t('portfolio.transactions.ticker')}
+              </th>
+              <th scope="col" className="text-left px-4 py-3 text-sm font-medium">
+                {t('portfolio.transactions.market')}
+              </th>
+              <th scope="col" className="text-left px-4 py-3 text-sm font-medium">
+                {t('portfolio.transactions.operation')}
+              </th>
+              <th
+                scope="col"
+                className="text-right py-3 pl-3 pr-2 text-sm font-medium border-l"
+                style={GROUP_START_BORDER_STYLE}
+              >
+                {t('portfolio.transactions.quantity')}
+              </th>
+              <th scope="col" className="w-6 px-0 py-3 text-center">
+                <MultiplySymbol />
+              </th>
+              <th
+                scope="col"
+                className="text-left py-3 pl-2 pr-3 text-sm font-medium border-r"
+                style={GROUP_END_BORDER_STYLE}
+              >
+                {t('portfolio.transactions.price')}
+              </th>
+              <th
+                scope="col"
+                className="text-right py-3 pl-3 pr-2 text-sm font-medium border-l"
+                style={GROUP_START_BORDER_STYLE}
+              >
+                {t('portfolio.transactions.adjustedQuantity')}
+              </th>
+              <th scope="col" className="w-6 px-0 py-3 text-center">
+                <MultiplySymbol />
+              </th>
+              <th
+                scope="col"
+                className="text-left py-3 pl-2 pr-3 text-sm font-medium border-r"
+                style={GROUP_END_BORDER_STYLE}
+              >
+                {t('portfolio.transactions.adjustedPrice')}
+              </th>
+              <th scope="col" className="text-right px-4 py-3 text-sm font-medium">
+                {t('portfolio.transactions.total')}
+              </th>
+              <th scope="col" className="text-left px-4 py-3 text-sm font-medium">
+                {t('portfolio.transactions.date')}
+              </th>
+              <th scope="col" className="px-4 py-3 text-sm font-medium w-10"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {transactions.map((transaction) => (
+              <TransactionRow
+                key={transaction.id}
+                transaction={transaction}
+                market={market}
+                marketCurrency={marketCurrency}
+                operationLabels={operationLabels}
+                actionLabels={actionLabels}
+                isDeletePending={isDeletePending}
+                onEditTransaction={onEditTransaction}
+                onDeleteTransaction={onDeleteTransaction}
+                formatCurrency={formatCurrency}
+                formatDate={formatDate}
+              />
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function TransactionRow({
+  transaction,
+  market,
+  marketCurrency,
+  operationLabels,
+  actionLabels,
+  isDeletePending,
+  onEditTransaction,
+  onDeleteTransaction,
+  formatCurrency,
+  formatDate,
+}: TransactionRowProps) {
+  const quantity = Number(transaction.quantity);
+  const adjustedQuantity = Number(
+    transaction.adjusted_quantity ?? transaction.quantity
+  );
+  const price = Number(transaction.price);
+  const adjustedPrice = Number(transaction.adjusted_price ?? transaction.price);
+  const total = quantity * price;
+  const operationStyle = TRANSACTION_OPERATION_STYLES[transaction.operation];
+  const OperationIcon = transaction.operation === 'buy' ? TrendingUp : TrendingDown;
+
+  return (
+    <tr
+      className="border-t transition-colors hover:bg-muted/50"
+      style={{ borderColor: 'hsl(var(--border))' }}
+    >
+      <td className="px-4 py-3">
+        <span className="font-semibold">
+          {toDisplayTicker(transaction.ticker, market)}
+        </span>
+      </td>
+      <td className="px-4 py-3">
+        <span
+          className="inline-flex items-center px-2.5 py-1 rounded text-sm font-medium"
+          style={{ backgroundColor: 'hsl(var(--muted))' }}
+        >
+          {market}
+        </span>
+      </td>
+      <td className="px-4 py-3">
+        <span
+          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-sm font-medium"
+          style={operationStyle}
+        >
+          <OperationIcon className="h-4 w-4" />
+          {operationLabels[transaction.operation]}
+        </span>
+      </td>
+      <td
+        className="text-right py-3 pl-3 pr-2 tabular-nums border-l"
+        style={GROUP_START_BORDER_STYLE}
+      >
+        {quantity.toLocaleString()}
+      </td>
+      <td className="px-0 py-3 text-center">
+        <MultiplySymbol />
+      </td>
+      <td
+        className="text-left py-3 pl-2 pr-3 tabular-nums border-r whitespace-nowrap"
+        style={GROUP_END_BORDER_STYLE}
+      >
+        {formatCurrency(price, marketCurrency)}
+      </td>
+      <td
+        className="text-right py-3 pl-3 pr-2 tabular-nums border-l"
+        style={GROUP_START_BORDER_STYLE}
+      >
+        {adjustedQuantity.toLocaleString()}
+      </td>
+      <td className="px-0 py-3 text-center">
+        <MultiplySymbol />
+      </td>
+      <td
+        className="text-left py-3 pl-2 pr-3 tabular-nums border-r whitespace-nowrap"
+        style={GROUP_END_BORDER_STYLE}
+      >
+        {formatCurrency(adjustedPrice, marketCurrency)}
+      </td>
+      <td className="text-right px-4 py-3 font-medium tabular-nums">
+        <div className="flex flex-col items-end">
+          <span>{formatCurrency(total, marketCurrency)}</span>
+          <span
+            className="text-[11px] font-normal tabular-nums"
+            style={{ color: 'hsl(var(--muted-foreground))' }}
+          >
+            {quantity.toLocaleString()} × {formatCurrency(price, marketCurrency)}
+          </span>
+        </div>
+      </td>
+      <td
+        className="px-4 py-3 text-sm"
+        style={{ color: 'hsl(var(--muted-foreground))' }}
+      >
+        {formatDate(transaction.date)}
+      </td>
+      <td className="px-4 py-3">
+        <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            type="button"
+            aria-label={actionLabels.edit}
+            onClick={() => onEditTransaction(transaction)}
+          >
+            <Pencil
+              className="h-4 w-4"
+              style={{ color: 'hsl(var(--muted-foreground))' }}
+            />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            type="button"
+            aria-label={actionLabels.delete}
+            onClick={() => onDeleteTransaction(transaction.id)}
+            disabled={isDeletePending}
+          >
+            <Trash2
+              className="h-4 w-4"
+              style={{ color: 'hsl(var(--destructive))' }}
+            />
+          </Button>
+        </div>
+      </td>
+    </tr>
+  );
+}
+
+function MultiplySymbol() {
+  return (
+    <span
+      className="inline-flex h-5 w-5 items-center justify-center rounded-full text-xs font-semibold"
+      style={{
+        backgroundColor: 'hsl(var(--muted))',
+        color: 'hsl(var(--muted-foreground))',
+      }}
+      aria-hidden="true"
+    >
+      ×
+    </span>
   );
 }
