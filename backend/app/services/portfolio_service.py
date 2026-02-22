@@ -308,15 +308,17 @@ def calculate_portfolio_performance_series(db: Session, portfolio_id: int) -> di
     safe = Decimal(0)
     points: list[dict] = []
 
+    open_days = _market_open_days(
+        db,
+        portfolio_id=portfolio_id,
+        start_date=first_buy_date,
+        end_date=yesterday,
+        tickers=tickers,
+    )
+
     current_day = first_buy_date
     while current_day <= yesterday:
         day_prices = prices_by_date.get(current_day, [])
-        day_price_tickers = {ticker for ticker, _ in day_prices}
-
-        has_priced_holding_start = any(
-            quantity > 0 and ticker in day_price_tickers
-            for ticker, quantity in holdings_qty.items()
-        )
 
         for ticker, operation, quantity, price in txns_by_date.get(
             current_day, []
@@ -362,12 +364,7 @@ def calculate_portfolio_performance_series(db: Session, portfolio_id: int) -> di
         for ticker, close in day_prices:
             latest_closes[ticker] = close
 
-        has_priced_holding_end = any(
-            quantity > 0 and ticker in day_price_tickers
-            for ticker, quantity in holdings_qty.items()
-        )
-
-        if has_priced_holding_start or has_priced_holding_end:
+        if current_day in open_days:
             realized_total = sum(realized_pl_by_ticker.values(), Decimal(0))
             unrealized_total = Decimal(0)
 
@@ -704,6 +701,54 @@ def _market_prices_by_date(
             (ticker, Decimal(str(close)))
         )
     return prices_by_date
+
+
+def _portfolio_market(db: Session, portfolio_id: int) -> str | None:
+    row = db.execute(
+        text("SELECT market FROM portfolios WHERE id = :pid"),
+        {"pid": portfolio_id},
+    ).fetchone()
+    return str(row[0]) if row and row[0] is not None else None
+
+
+def _market_open_days(
+    db: Session,
+    portfolio_id: int,
+    start_date: date,
+    end_date: date,
+    tickers: list[str],
+) -> set[date]:
+    """Return open trading days for the portfolio market in [start_date, end_date]."""
+    if end_date < start_date:
+        return set()
+
+    market = _portfolio_market(db, portfolio_id)
+    benchmark_candidates = {
+        # BIST benchmark candidates on Yahoo Finance
+        "BIST": ["XU100.IS", "^XU100"],
+    }
+
+    candidates = benchmark_candidates.get(market or "", [])
+    for benchmark in candidates:
+        prices = _download_prices(benchmark, start_date, end_date)
+        if not prices.empty:
+            return set(prices["date"].tolist())
+
+    # Fallback 1: infer open days from any traded ticker by downloading its
+    # full range directly from yfinance (not restricted to holding ranges).
+    for ticker in tickers:
+        prices = _download_prices(ticker, start_date, end_date)
+        if not prices.empty:
+            return set(prices["date"].tolist())
+
+    # Fallback 2: weekdays only.
+    open_days: set[date] = set()
+    current_day = start_date
+    while current_day <= end_date:
+        if current_day.weekday() < 5:
+            open_days.add(current_day)
+        current_day += timedelta(days=1)
+    return open_days
 
 
 def _holding_ranges(
