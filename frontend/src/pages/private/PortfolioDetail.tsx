@@ -24,6 +24,7 @@ import {
 } from '@/services/portfolioService';
 import {
   getMarketCurrency,
+  getDateLocale,
   getLocale,
   toDisplayTicker,
 } from '@/config';
@@ -36,6 +37,7 @@ interface TransactionsTableProps {
   isDeletePending: boolean;
   onEditTransaction: (transaction: Transaction) => void;
   onDeleteTransaction: (transactionId: number) => void;
+  formatNumber: (value: number) => string;
   formatCurrency: (value: number, currency?: string) => string;
   formatDate: (dateString: string) => string;
 }
@@ -52,6 +54,7 @@ interface TransactionRowProps {
   isDeletePending: boolean;
   onEditTransaction: (transaction: Transaction) => void;
   onDeleteTransaction: (transactionId: number) => void;
+  formatNumber: (value: number) => string;
   formatCurrency: (value: number, currency?: string) => string;
   formatDate: (dateString: string) => string;
 }
@@ -217,15 +220,22 @@ export function PortfolioDetail() {
     }
   };
 
+  const numberLocale = getLocale(i18n.language);
+  const dateLocale = getDateLocale(i18n.language);
+
+  const formatNumber = (value: number) => {
+    return new Intl.NumberFormat(numberLocale).format(value);
+  };
+
   const formatCurrency = (value: number, currency: string = 'TRY') => {
-    return new Intl.NumberFormat(getLocale(i18n.language), {
+    return new Intl.NumberFormat(numberLocale, {
       style: 'currency',
       currency,
     }).format(value);
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
+    return new Date(dateString).toLocaleDateString(dateLocale, {
       month: 'short',
       day: 'numeric',
       year: 'numeric',
@@ -370,6 +380,7 @@ export function PortfolioDetail() {
                 isDeletePending={deleteMutation.isPending}
                 onEditTransaction={openEditModal}
                 onDeleteTransaction={handleDeleteTransaction}
+                formatNumber={formatNumber}
                 formatCurrency={formatCurrency}
                 formatDate={formatDate}
               />
@@ -710,6 +721,7 @@ function TransactionsTable({
   isDeletePending,
   onEditTransaction,
   onDeleteTransaction,
+  formatNumber,
   formatCurrency,
   formatDate,
 }: TransactionsTableProps) {
@@ -797,6 +809,7 @@ function TransactionsTable({
                 isDeletePending={isDeletePending}
                 onEditTransaction={onEditTransaction}
                 onDeleteTransaction={onDeleteTransaction}
+                formatNumber={formatNumber}
                 formatCurrency={formatCurrency}
                 formatDate={formatDate}
               />
@@ -817,6 +830,7 @@ function TransactionRow({
   isDeletePending,
   onEditTransaction,
   onDeleteTransaction,
+  formatNumber,
   formatCurrency,
   formatDate,
 }: TransactionRowProps) {
@@ -861,7 +875,7 @@ function TransactionRow({
         className="text-right py-3 pl-3 pr-2 tabular-nums border-l"
         style={GROUP_START_BORDER_STYLE}
       >
-        {quantity.toLocaleString()}
+        {formatNumber(quantity)}
       </td>
       <td className="px-0 py-3 text-center">
         <MultiplySymbol />
@@ -876,7 +890,7 @@ function TransactionRow({
         className="text-right py-3 pl-3 pr-2 tabular-nums border-l"
         style={GROUP_START_BORDER_STYLE}
       >
-        {adjustedQuantity.toLocaleString()}
+        {formatNumber(adjustedQuantity)}
       </td>
       <td className="px-0 py-3 text-center">
         <MultiplySymbol />
@@ -894,7 +908,7 @@ function TransactionRow({
             className="text-[11px] font-normal tabular-nums"
             style={{ color: 'hsl(var(--muted-foreground))' }}
           >
-            {quantity.toLocaleString()} × {formatCurrency(price, marketCurrency)}
+            {formatNumber(quantity)} × {formatCurrency(price, marketCurrency)}
           </span>
         </div>
       </td>
