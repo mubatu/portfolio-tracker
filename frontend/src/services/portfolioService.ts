@@ -28,6 +28,11 @@ export interface CreatePortfolioInput {
   market: Market;
 }
 
+export interface UpdatePortfolioInput {
+  id: number;
+  name: string;
+}
+
 export interface CreateTransactionInput {
   portfolio_id: number;
   ticker: string;
@@ -163,6 +168,30 @@ export async function deletePortfolio(id: number): Promise<void> {
   if (error) {
     throw new Error(error.message);
   }
+}
+
+export async function updatePortfolio(input: UpdatePortfolioInput): Promise<Portfolio> {
+  const { data: { user } } = await supabase.auth.getUser();
+  
+  if (!user) {
+    throw new Error('User not authenticated');
+  }
+
+  const { data, error } = await supabase
+    .from('portfolios')
+    .update({
+      name: input.name,
+    })
+    .eq('id', input.id)
+    .eq('user_id', user.id)
+    .select()
+    .single();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data;
 }
 
 export async function deletePortfolioBySlug(slug: string): Promise<void> {

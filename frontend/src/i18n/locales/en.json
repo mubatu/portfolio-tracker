@@ -118,6 +118,11 @@
       "namePlaceholder": "e.g., Tech Stocks, Retirement Fund",
       "nameLabel": "Portfolio Name",
       "marketLabel": "Market"
+    },
+    "edit": {
+      "title": "Rename Portfolio",
+      "nameLabel": "Portfolio Name",
+      "namePlaceholder": "Enter portfolio name"
     }
   },
   "portfolio": {

@@ -2,13 +2,14 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Briefcase, Loader2, Trash2, ChevronRight } from 'lucide-react';
+import { Plus, Briefcase, Loader2, Trash2, ChevronRight, Pencil } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Modal } from '@/components/ui/Modal';
 import { MARKETS, type Market } from '@/config';
 import {
   getPortfolios,
   createPortfolio,
+  updatePortfolio,
   deletePortfolio,
   type Portfolio,
 } from '@/services/portfolioService';
@@ -19,11 +20,15 @@ export function MyPortfolios() {
   const queryClient = useQueryClient();
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [portfolioToEdit, setPortfolioToEdit] = useState<Portfolio | null>(null);
   const [portfolioToDelete, setPortfolioToDelete] = useState<Portfolio | null>(null);
   const [newPortfolioName, setNewPortfolioName] = useState('');
   const [newPortfolioMarket, setNewPortfolioMarket] = useState<Market>('BIST');
+  const [editPortfolioName, setEditPortfolioName] = useState('');
   const [createError, setCreateError] = useState('');
+  const [editError, setEditError] = useState('');
 
   // Fetch portfolios
   const {
@@ -60,6 +65,20 @@ export function MyPortfolios() {
     },
   });
 
+  const updateMutation = useMutation({
+    mutationFn: updatePortfolio,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['portfolios'] });
+      setIsEditModalOpen(false);
+      setPortfolioToEdit(null);
+      setEditPortfolioName('');
+      setEditError('');
+    },
+    onError: (error: Error) => {
+      setEditError(error.message);
+    },
+  });
+
   const handleCreateSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (newPortfolioName.trim()) {
@@ -74,6 +93,25 @@ export function MyPortfolios() {
     e.stopPropagation();
     setPortfolioToDelete(portfolio);
     setIsDeleteModalOpen(true);
+  };
+
+  const handleEditClick = (e: React.MouseEvent, portfolio: Portfolio) => {
+    e.stopPropagation();
+    setPortfolioToEdit(portfolio);
+    setEditPortfolioName(portfolio.name);
+    setEditError('');
+    setIsEditModalOpen(true);
+  };
+
+  const handleEditSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!portfolioToEdit || !editPortfolioName.trim()) {
+      return;
+    }
+    updateMutation.mutate({
+      id: portfolioToEdit.id,
+      name: editPortfolioName.trim(),
+    });
   };
 
   const handleConfirmDelete = () => {
@@ -180,6 +218,14 @@ export function MyPortfolios() {
                   <Briefcase className="h-5 w-5 text-primary" />
                 </div>
                 <div className="flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={(e) => handleEditClick(e, portfolio)}
+                  >
+                    <Pencil className="h-4 w-4" style={{ color: 'hsl(var(--muted-foreground))' }} />
+                  </Button>
                   <Button
                     variant="ghost"
                     size="icon"
@@ -311,6 +357,72 @@ export function MyPortfolios() {
               style={{ color: 'hsl(var(--destructive))' }}
             >
               {createError}
+            </p>
+          )}
+        </form>
+      </Modal>
+
+      {/* Edit Portfolio Modal */}
+      <Modal
+        isOpen={isEditModalOpen}
+        onClose={() => {
+          setIsEditModalOpen(false);
+          setPortfolioToEdit(null);
+          setEditPortfolioName('');
+          setEditError('');
+        }}
+        title={t('myPortfolios.edit.title')}
+        footer={
+          <>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsEditModalOpen(false);
+                setPortfolioToEdit(null);
+                setEditPortfolioName('');
+                setEditError('');
+              }}
+            >
+              {t('common.cancel')}
+            </Button>
+            <Button
+              onClick={handleEditSubmit}
+              disabled={!editPortfolioName.trim() || updateMutation.isPending}
+            >
+              {updateMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                t('common.save')
+              )}
+            </Button>
+          </>
+        }
+      >
+        <form onSubmit={handleEditSubmit}>
+          <div>
+            <label
+              htmlFor="editPortfolioName"
+              className="block text-sm font-medium mb-2"
+            >
+              {t('myPortfolios.edit.nameLabel')}
+            </label>
+            <input
+              id="editPortfolioName"
+              type="text"
+              value={editPortfolioName}
+              onChange={(e) => setEditPortfolioName(e.target.value)}
+              placeholder={t('myPortfolios.edit.namePlaceholder')}
+              autoFocus
+              className="w-full px-3 py-2 rounded-md border bg-transparent"
+              style={{ borderColor: 'hsl(var(--input))' }}
+            />
+          </div>
+          {editError && (
+            <p
+              className="text-sm mt-2"
+              style={{ color: 'hsl(var(--destructive))' }}
+            >
+              {editError}
             </p>
           )}
         </form>
